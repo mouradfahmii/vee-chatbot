@@ -1,0 +1,325 @@
+{
+  "metadata": {
+    "generatedAt": "2025-11-25T10:00:00Z",
+    "currency": "USD",
+    "units": {
+      "weight": "grams",
+      "temperature": "celsius"
+    },
+    "notes": "Synthetic dataset for food & recipes chatbot prototype"
+  },
+  "users": [
+    {
+      "userId": "U001",
+      "name": "Lina Park",
+      "age": 31,
+      "gender": "female",
+      "goals": ["lean muscle", "gluten-free baking"],
+      "dietaryPreferences": ["pescatarian", "gluten-free"],
+      "allergies": ["peanuts"],
+      "timezone": "America/Los_Angeles",
+      "preferredSessionTimes": ["06:00", "19:30"],
+      "devices": ["iOS", "Smart Fridge"],
+      "activePlanId": "PLAN_A",
+      "sessionHistory": ["S001", "S005", "S011"],
+      "photoUploads": ["IMG_001", "IMG_006"]
+    },
+    {
+      "userId": "U002",
+      "name": "Marco Silva",
+      "age": 27,
+      "gender": "male",
+      "goals": ["marathon prep", "meal-prep efficiency"],
+      "dietaryPreferences": ["high-protein", "Mediterranean"],
+      "allergies": [],
+      "timezone": "Europe/Lisbon",
+      "preferredSessionTimes": ["12:30", "20:00"],
+      "devices": ["Android", "Smart Scale"],
+      "activePlanId": "PLAN_B",
+      "sessionHistory": ["S002", "S006", "S009"],
+      "photoUploads": ["IMG_002", "IMG_007", "IMG_010"]
+    },
+    {
+      "userId": "U003",
+      "name": "Priya Natarajan",
+      "age": 42,
+      "gender": "female",
+      "goals": ["family meal planning", "diabetes management"],
+      "dietaryPreferences": ["vegetarian", "low-glycemic"],
+      "allergies": ["shellfish"],
+      "timezone": "Asia/Kolkata",
+      "preferredSessionTimes": ["07:30", "21:00"],
+      "devices": ["iOS", "Smart Oven"],
+      "activePlanId": "PLAN_C",
+      "sessionHistory": ["S003", "S007", "S010"],
+      "photoUploads": ["IMG_003", "IMG_008"]
+    },
+    {
+      "userId": "U004",
+      "name": "Noah Evans",
+      "age": 35,
+      "gender": "male",
+      "goals": ["weight loss", "quick weeknight meals"],
+      "dietaryPreferences": ["balanced", "dairy-free"],
+      "allergies": ["lactose"],
+      "timezone": "America/New_York",
+      "preferredSessionTimes": ["08:00", "18:00"],
+      "devices": ["Android", "Smart Watch"],
+      "activePlanId": "PLAN_D",
+      "sessionHistory": ["S004", "S008", "S012"],
+      "photoUploads": ["IMG_004", "IMG_009"]
+    }
+  ],
+  "mealPlans": [
+    {
+      "planId": "PLAN_A",
+      "name": "Coastal Lean",
+      "durationWeeks": 4,
+      "dailyCalories": 2050,
+      "macros": {
+        "protein": 30,
+        "carbs": 40,
+        "fat": 30
+      },
+      "focus": "Pescatarian high-protein meals with gluten-free grains",
+      "scheduledMeals": ["M001", "M002", "M003", "M004"]
+    },
+    {
+      "planId": "PLAN_B",
+      "name": "Runner's Fuel",
+      "durationWeeks": 6,
+      "dailyCalories": 2600,
+      "macros": {
+        "protein": 35,
+        "carbs": 45,
+        "fat": 20
+      },
+      "focus": "Mediterranean-inspired meal prep for endurance athletes",
+      "scheduledMeals": ["M005", "M006", "M007", "M008"]
+    },
+    {
+      "planId": "PLAN_C",
+      "name": "Family Balance",
+      "durationWeeks": 8,
+      "dailyCalories": 1900,
+      "macros": {
+        "protein": 25,
+        "carbs": 50,
+        "fat": 25
+      },
+      "focus": "Vegetarian low-glycemic recipes for multi-generational households",
+      "scheduledMeals": ["M009", "M010", "M011", "M012"]
+    },
+    {
+      "planId": "PLAN_D",
+      "name": "Reset 30",
+      "durationWeeks": 4,
+      "dailyCalories": 1700,
+      "macros": {
+        "protein": 30,
+        "carbs": 35,
+        "fat": 35
+      },
+      "focus": "Quick prep weekday meals with dairy-free swaps",
+      "scheduledMeals": ["M013", "M014", "M015", "M016"]
+    }
+  ],
+  "meals": [
+    {
+      "mealId": "M001",
+      "name": "Miso Citrus Salmon Bowl",
+      "mealType": "dinner",
+      "prepTimeMinutes": 20,
+      "cookTimeMinutes": 18,
+      "servings": 2,
+      "calories": 540,
+      "ingredients": [
+        {"name": "salmon filet", "quantity": 2, "unit": "pieces"},
+        {"name": "brown rice", "quantity": 180, "unit": "grams"},
+        {"name": "broccolini", "quantity": 150, "unit": "grams"},
+        {"name": "miso paste", "quantity": 2, "unit": "tablespoons"}
+      ],
+      "instructions": ["Preheat oven to 200C", "Whisk miso glaze", "Roast salmon 12 min", "Steam broccolini", "Assemble bowls"],
+      "nutrition": {"protein": 42, "carbs": 48, "fat": 20},
+      "suitableFor": ["gluten-free", "pescatarian"],
+      "tags": ["weeknight", "sheet-pan", "omega-3"]
+    },
+    {
+      "mealId": "M006",
+      "name": "Smoky Chickpea Meal Prep",
+      "mealType": "lunch",
+      "prepTimeMinutes": 25,
+      "cookTimeMinutes": 30,
+      "servings": 4,
+      "calories": 610,
+      "ingredients": [
+        {"name": "chickpeas", "quantity": 400, "unit": "grams"},
+        {"name": "red quinoa", "quantity": 220, "unit": "grams"},
+        {"name": "sun-dried tomato pesto", "quantity": 3, "unit": "tablespoons"},
+        {"name": "spinach", "quantity": 120, "unit": "grams"}
+      ],
+      "instructions": ["Toast quinoa", "Smoky roast chickpeas", "Fold pesto", "Pack for lunches"],
+      "nutrition": {"protein": 28, "carbs": 70, "fat": 18},
+      "suitableFor": ["vegan", "high-protein"],
+      "tags": ["meal-prep", "fiber-rich", "Mediterranean"]
+    },
+    {
+      "mealId": "M010",
+      "name": "Paneer Millet Skillet",
+      "mealType": "dinner",
+      "prepTimeMinutes": 15,
+      "cookTimeMinutes": 22,
+      "servings": 4,
+      "calories": 480,
+      "ingredients": [
+        {"name": "paneer", "quantity": 250, "unit": "grams"},
+        {"name": "foxtail millet", "quantity": 200, "unit": "grams"},
+        {"name": "spinach", "quantity": 100, "unit": "grams"},
+        {"name": "tomato puree", "quantity": 150, "unit": "grams"}
+      ],
+      "instructions": ["Toast millet", "Saute aromatics", "Fold in paneer", "Simmer with puree", "Stir spinach"],
+      "nutrition": {"protein": 24, "carbs": 54, "fat": 16},
+      "suitableFor": ["vegetarian", "low-glycemic"],
+      "tags": ["family", "one-pan", "diabetes-friendly"]
+    },
+    {
+      "mealId": "M014",
+      "name": "Citrus Herb Chicken Traybake",
+      "mealType": "dinner",
+      "prepTimeMinutes": 10,
+      "cookTimeMinutes": 28,
+      "servings": 3,
+      "calories": 430,
+      "ingredients": [
+        {"name": "chicken thighs", "quantity": 3, "unit": "pieces"},
+        {"name": "sweet potato", "quantity": 250, "unit": "grams"},
+        {"name": "fennel", "quantity": 120, "unit": "grams"},
+        {"name": "citrus marinade", "quantity": 60, "unit": "ml"}
+      ],
+      "instructions": ["Toss tray", "Roast 28 min", "Finish under broiler"],
+      "nutrition": {"protein": 36, "carbs": 38, "fat": 14},
+      "suitableFor": ["dairy-free", "balanced"],
+      "tags": ["30-min", "sheet-pan", "weekday"]
+    }
+  ],
+  "sessions": [
+    {
+      "sessionId": "S001",
+      "type": "live_cooking",
+      "title": "Gluten-Free Sushi Rolling",
+      "coach": "Chef Hana",
+      "scheduledDate": "2025-11-26T02:00:00Z",
+      "durationMinutes": 60,
+      "capacity": 15,
+      "booked": 12,
+      "topics": ["rice prep", "knife skills", "seaweed handling"],
+      "requiredPrep": ["pre-cook rice", "chill fillings"],
+      "materials": ["rolling mat", "paring knife"],
+      "recordingAvailable": true
+    },
+    {
+      "sessionId": "S006",
+      "type": "async_video",
+      "title": "5-Day Endurance Meal Prep",
+      "coach": "Coach Rafa",
+      "scheduledDate": "2025-11-30T15:00:00Z",
+      "durationMinutes": 35,
+      "capacity": 100,
+      "booked": 84,
+      "topics": ["batch cooking", "macro timing", "portable snacks"],
+      "requiredPrep": ["clear counter space"],
+      "materials": ["sheet pans", "storage jars"],
+      "recordingAvailable": true
+    },
+    {
+      "sessionId": "S009",
+      "type": "chat_qna",
+      "title": "Quick Sauces Hotline",
+      "coach": "Chef Lila",
+      "scheduledDate": "2025-11-25T18:00:00Z",
+      "durationMinutes": 25,
+      "capacity": 40,
+      "booked": 37,
+      "topics": ["pan sauces", "dairy-free thickeners", "storage safety"],
+      "requiredPrep": [],
+      "materials": ["whisk", "immersion blender"],
+      "recordingAvailable": false
+    },
+    {
+      "sessionId": "S012",
+      "type": "workshop",
+      "title": "Low-Glycemic Holiday Sides",
+      "coach": "Dietitian Amira",
+      "scheduledDate": "2025-12-01T00:30:00Z",
+      "durationMinutes": 50,
+      "capacity": 20,
+      "booked": 16,
+      "topics": ["swap sweeteners", "roasting tricks", "portion cues"],
+      "requiredPrep": ["pre-cut veggies"],
+      "materials": ["sheet pan", "mandoline"],
+      "recordingAvailable": true
+    }
+  ],
+  "calorieInsights": [
+    {
+      "insightId": "INS_01",
+      "type": "trend",
+      "title": "Average dinner calories",
+      "data": {
+        "avgCalories": 490,
+        "trend": "-4% week-over-week",
+        "topMeals": ["M001", "M010", "M014"]
+      },
+      "recommendedAction": "Suggest lighter sauces during evening chats"
+    },
+    {
+      "insightId": "INS_02",
+      "type": "alert",
+      "title": "High sodium meal flag",
+      "data": {
+        "mealId": "M006",
+        "sodiumMg": 920,
+        "threshold": 800
+      },
+      "recommendedAction": "Offer herb vinegar swaps when users ask about M006"
+    }
+  ],
+  "photoCalorieEstimates": [
+    {
+      "photoId": "IMG_001",
+      "userId": "U001",
+      "mealGuess": "Miso Salmon Bowl",
+      "calorieEstimate": 560,
+      "confidence": 0.82,
+      "detectedIngredients": ["salmon", "rice", "greens"],
+      "uploadTime": "2025-11-20T19:14:00Z"
+    },
+    {
+      "photoId": "IMG_007",
+      "userId": "U002",
+      "mealGuess": "Chickpea Meal Prep",
+      "calorieEstimate": 630,
+      "confidence": 0.76,
+      "detectedIngredients": ["chickpeas", "quinoa", "greens"],
+      "uploadTime": "2025-11-23T09:45:00Z"
+    },
+    {
+      "photoId": "IMG_008",
+      "userId": "U003",
+      "mealGuess": "Paneer Millet Skillet",
+      "calorieEstimate": 470,
+      "confidence": 0.79,
+      "detectedIngredients": ["paneer", "millet", "spinach"],
+      "uploadTime": "2025-11-22T13:10:00Z"
+    },
+    {
+      "photoId": "IMG_009",
+      "userId": "U004",
+      "mealGuess": "Citrus Herb Chicken",
+      "calorieEstimate": 440,
+      "confidence": 0.74,
+      "detectedIngredients": ["chicken", "sweet potato", "fennel"],
+      "uploadTime": "2025-11-24T18:33:00Z"
+    }
+  ]
+}
