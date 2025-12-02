@@ -13,14 +13,7 @@ env/
 logs/
 *.log
 
-# Test images
-test_images/
-
-# ChromaDB
-chromadb_store/
-
 # Environment
-.env
 .env.local
 
 # IDE
