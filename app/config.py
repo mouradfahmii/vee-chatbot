@@ -56,8 +56,8 @@ class Settings(BaseModel):
         description="Number of documents retrieved per question.",
     )
     temperature: float = Field(
-        default=0.2,
-        description="Sampling temperature passed to the language model.",
+        default=float(os.getenv("FOOD_BOT_TEMPERATURE", "0.5")),
+        description="Sampling temperature passed to the language model. Higher values (0.5-0.7) create more varied responses.",
     )
 
 
