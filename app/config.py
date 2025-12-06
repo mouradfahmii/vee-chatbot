@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,9 @@ load_dotenv()
 # Disable Chroma telemetry to avoid PostHog capture signature errors during CLI/API runs.
 os.environ.setdefault("POSTHOG_DISABLE", "1")
 os.environ.setdefault("CHROMA_TELEMETRY_ANONYMIZED", "False")
+
+# Suppress Pydantic serialization warnings from LiteLLM
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 
 class Settings(BaseModel):
@@ -58,6 +62,24 @@ class Settings(BaseModel):
     temperature: float = Field(
         default=float(os.getenv("FOOD_BOT_TEMPERATURE", "0.5")),
         description="Sampling temperature passed to the language model. Higher values (0.5-0.7) create more varied responses.",
+    )
+    # AWS S3 logging configuration
+    aws_s3_bucket: Optional[str] = Field(
+        default=os.getenv("AWS_S3_LOG_BUCKET"),
+        description="S3 bucket name for storing logs. If not set, logs are only stored locally.",
+    )
+    aws_s3_prefix: str = Field(
+        default=os.getenv("AWS_S3_LOG_PREFIX", "vee-chatbot/logs/"),
+        description="S3 prefix/path for log files.",
+    )
+    aws_region: Optional[str] = Field(
+        default=os.getenv("AWS_REGION", "us-east-1"),
+        description="AWS region for S3 operations.",
+    )
+    # MySQL ingestion configuration
+    ingest_mysql_on_startup: bool = Field(
+        default=os.getenv("INGEST_MYSQL_ON_STARTUP", "false").lower() == "true",
+        description="If True, ingest MySQL data on application startup.",
     )
 
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.chatbot import bot
 from app.ingest import ingest_dataset
+from app.mysql_ingestor import ingest_mysql
+from api.auth import verify_api_key
 from api.schemas import ChatRequest, ChatResponse, ImageChatRequest
 
 app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
@@ -12,14 +14,32 @@ app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
 
 @app.on_event("startup")
 async def ensure_chroma_seeded() -> None:
+    """Load knowledge base on startup."""
+    from app.config import settings
+    
     try:
+        # Always load JSON data if available
         ingest_dataset(reset=False)
-    except FileNotFoundError as exc:
-        raise RuntimeError("Missing synthetic dataset. Did you create data/?") from exc
+    except FileNotFoundError:
+        # JSON file is optional if MySQL is used
+        pass
+    
+    # Optionally load MySQL data on startup
+    if settings.ingest_mysql_on_startup:
+        try:
+            ingest_mysql(reset=False)
+        except Exception as e:
+            # Log but don't fail startup if MySQL ingestion fails
+            import logging
+            logging.warning(f"MySQL ingestion on startup failed: {e}")
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
+async def chat_endpoint(
+    payload: ChatRequest,
+    api_key: str = Depends(verify_api_key),
+) -> ChatResponse:
+    """Chat endpoint - requires API key authentication."""
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     try:
@@ -34,8 +54,9 @@ async def chat_image_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
     question: str = "What is in this image? Estimate the calories.",
     user_id: str | None = None,
+    api_key: str = Depends(verify_api_key),
 ) -> ChatResponse:
-    """Analyze a food image and answer questions about it."""
+    """Analyze a food image and answer questions about it - requires API key authentication."""
     # Validate file type
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
@@ -52,6 +73,33 @@ async def chat_image_endpoint(
 
 
 @app.post("/ingest")
-async def reingest(reset: bool = True) -> dict:
+async def reingest(
+    reset: bool = True,
+    api_key: str = Depends(verify_api_key),
+) -> dict:
+    """Reingest the knowledge base from JSON file - requires API key authentication (admin endpoint)."""
     count = ingest_dataset(reset=reset)
-    return {"documents": count, "reset": reset}
+    return {"documents": count, "reset": reset, "source": "json"}
+
+
+@app.post("/ingest/mysql")
+async def reingest_mysql(
+    reset: bool = False,
+    tables: str | None = None,
+    api_key: str = Depends(verify_api_key),
+) -> dict:
+    """
+    Ingest MySQL database into knowledge base - requires API key authentication (admin endpoint).
+    
+    Args:
+        reset: If True, reset the vector store before adding MySQL data
+        tables: Comma-separated list of table names to ingest. If None, ingests all tables.
+    """
+    table_list = [t.strip() for t in tables.split(",")] if tables else None
+    count = ingest_mysql(reset=reset, table_names=table_list)
+    return {
+        "documents": count,
+        "reset": reset,
+        "source": "mysql",
+        "tables": table_list or "all"
+    }

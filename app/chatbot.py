@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import List, Sequence
 
 from app.config import settings
@@ -28,8 +29,11 @@ class FoodChatbot:
 
     def is_food_related(self, query: str) -> bool:
         """Check if query is related to food/cooking topics."""
-        query_lower = query.lower()
-        return any(keyword in query_lower for keyword in self.FOOD_KEYWORDS)
+        # Normalize query: remove punctuation and extra spaces for better matching
+        query_normalized = re.sub(r'[^\w\s]', '', query.lower())
+        query_normalized = ' '.join(query_normalized.split())
+        # Check if any keyword appears in the normalized query
+        return any(keyword in query_normalized for keyword in self.FOOD_KEYWORDS)
 
     def build_context(self, query: str) -> List[Document]:
         return vector_store.query(query, n_results=settings.max_context_documents)
@@ -69,17 +73,25 @@ class FoodChatbot:
         try:
             # Quick scope check - if clearly not food-related, add explicit instruction
             if not is_food_related:
-                # Still let LLM handle it with strict instructions, but add extra guard
+                # Let LLM handle it naturally but with context-aware redirect
+                history_context = "There is conversation history, so do NOT repeat your introduction. Continue naturally." if history else "This is the first message, so you can introduce yourself if appropriate."
                 prompt = (
-                    f"User question: {question}\n\n"
-                    "IMPORTANT: This question does NOT appear to be about food, cooking, recipes, "
-                    "meals, or nutrition. You MUST politely decline and redirect to food topics only. "
-                    "Do NOT answer the question if it's not food-related."
+                    f"User message: {question}\n\n"
+                    f"This message does NOT appear to be about food, cooking, recipes, meals, or nutrition. "
+                    f"{history_context} "
+                    "Please acknowledge it naturally (if it's a greeting, acknowledge it; if it's a question, "
+                    "politely decline) and redirect to food topics. Be contextual and friendly, but always redirect "
+                    "to your role as a culinary assistant. If there's history, be conversational and don't repeat yourself."
                 )
                 messages = [
                     {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": prompt},
                 ]
+                # Include history in messages for context
+                if history:
+                    for turn in history:
+                        messages.append({"role": "user", "content": turn["user"]})
+                        messages.append({"role": "assistant", "content": turn["assistant"]})
+                messages.append({"role": "user", "content": prompt})
                 answer = llm_client.chat(messages)
             else:
                 docs = self.build_context(question)
