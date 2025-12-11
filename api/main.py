@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -62,7 +63,7 @@ async def chat_html_endpoint(
 ) -> HTMLResponse:
     """
     Chat endpoint that returns HTML instead of JSON.
-    Escapes the model output and converts newlines to <br> for basic formatting.
+    Converts Markdown headers (#, ##, ###) and formatting (*, **) to HTML.
     """
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -71,8 +72,31 @@ async def chat_html_endpoint(
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    safe_html = html.escape(answer).replace("\n", "<br>")
-    return HTMLResponse(content=f"<p>{safe_html}</p>")
+    # Convert Markdown headers to HTML
+    # ### Header -> <h3>Header</h3>
+    html_content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', answer, flags=re.MULTILINE)
+    # ## Header -> <h2>Header</h2>
+    html_content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
+    # # Header -> <h1>Header</h1>
+    html_content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
+    
+    # Convert bold (**text**)
+    html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
+    
+    # Convert italic (*text*)
+    html_content = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<em>\1</em>', html_content)
+    
+    # Escape HTML and convert newlines
+    safe_html = html.escape(html_content).replace("\n", "<br>")
+    
+    # Unescape our HTML tags
+    safe_html = safe_html.replace("&lt;h1&gt;", "<h1>").replace("&lt;/h1&gt;", "</h1>")
+    safe_html = safe_html.replace("&lt;h2&gt;", "<h2>").replace("&lt;/h2&gt;", "</h2>")
+    safe_html = safe_html.replace("&lt;h3&gt;", "<h3>").replace("&lt;/h3&gt;", "</h3>")
+    safe_html = safe_html.replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
+    safe_html = safe_html.replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
+    
+    return HTMLResponse(content=f"<div>{safe_html}</div>")
 
 
 @app.post("/chat/image", response_model=ChatResponse)
