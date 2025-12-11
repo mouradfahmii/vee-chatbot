@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import html
+
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.chatbot import bot
 from app.ingest import ingest_dataset
@@ -47,6 +49,30 @@ async def chat_endpoint(
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return ChatResponse(answer=answer)
+
+
+@app.post(
+    "/chat/html",
+    response_class=HTMLResponse,
+    responses={200: {"content": {"text/html": {}}}},
+)
+async def chat_html_endpoint(
+    payload: ChatRequest,
+    api_key: str = Depends(verify_api_key),
+) -> HTMLResponse:
+    """
+    Chat endpoint that returns HTML instead of JSON.
+    Escapes the model output and converts newlines to <br> for basic formatting.
+    """
+    if not payload.message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    try:
+        answer = bot.answer(payload.message, history=payload.history, user_id=payload.user_id)
+    except Exception as exc:  # pragma: no cover - propagate LLM errors with context
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    safe_html = html.escape(answer).replace("\n", "<br>")
+    return HTMLResponse(content=f"<p>{safe_html}</p>")
 
 
 @app.post("/chat/image", response_model=ChatResponse)
