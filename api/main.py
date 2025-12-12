@@ -15,6 +15,38 @@ from api.schemas import ChatRequest, ChatResponse, ImageChatRequest
 app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
 
 
+def markdown_to_html(text: str) -> str:
+    """
+    Convert Markdown formatting to HTML.
+    Converts headers (#, ##, ###), bold (**text**), and italic (*text*) to HTML.
+    """
+    # Convert Markdown headers to HTML
+    # ### Header -> <h3>Header</h3>
+    html_content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+    # ## Header -> <h2>Header</h2>
+    html_content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
+    # # Header -> <h1>Header</h1>
+    html_content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
+    
+    # Convert bold (**text**)
+    html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
+    
+    # Convert italic (*text*)
+    html_content = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<em>\1</em>', html_content)
+    
+    # Escape HTML and convert newlines
+    safe_html = html.escape(html_content).replace("\n", "<br>")
+    
+    # Unescape our HTML tags
+    safe_html = safe_html.replace("&lt;h1&gt;", "<h1>").replace("&lt;/h1&gt;", "</h1>")
+    safe_html = safe_html.replace("&lt;h2&gt;", "<h2>").replace("&lt;/h2&gt;", "</h2>")
+    safe_html = safe_html.replace("&lt;h3&gt;", "<h3>").replace("&lt;/h3&gt;", "</h3>")
+    safe_html = safe_html.replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
+    safe_html = safe_html.replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
+    
+    return safe_html
+
+
 @app.on_event("startup")
 async def ensure_chroma_seeded() -> None:
     """Load knowledge base on startup."""
@@ -72,30 +104,7 @@ async def chat_html_endpoint(
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    # Convert Markdown headers to HTML
-    # ### Header -> <h3>Header</h3>
-    html_content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', answer, flags=re.MULTILINE)
-    # ## Header -> <h2>Header</h2>
-    html_content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
-    # # Header -> <h1>Header</h1>
-    html_content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
-    
-    # Convert bold (**text**)
-    html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
-    
-    # Convert italic (*text*)
-    html_content = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<em>\1</em>', html_content)
-    
-    # Escape HTML and convert newlines
-    safe_html = html.escape(html_content).replace("\n", "<br>")
-    
-    # Unescape our HTML tags
-    safe_html = safe_html.replace("&lt;h1&gt;", "<h1>").replace("&lt;/h1&gt;", "</h1>")
-    safe_html = safe_html.replace("&lt;h2&gt;", "<h2>").replace("&lt;/h2&gt;", "</h2>")
-    safe_html = safe_html.replace("&lt;h3&gt;", "<h3>").replace("&lt;/h3&gt;", "</h3>")
-    safe_html = safe_html.replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
-    safe_html = safe_html.replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
-    
+    safe_html = markdown_to_html(answer)
     return HTMLResponse(content=f"<div>{safe_html}</div>")
 
 
@@ -118,6 +127,39 @@ async def chat_image_endpoint(
         # Analyze image
         answer = bot.answer_with_image(image_data, question=question, user_id=user_id)
         return ChatResponse(answer=answer)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post(
+    "/chat/image/html",
+    response_class=HTMLResponse,
+    responses={200: {"content": {"text/html": {}}}},
+)
+async def chat_image_html_endpoint(
+    image: UploadFile = File(..., description="Food image to analyze"),
+    question: str = "What is in this image? Estimate the calories.",
+    user_id: str | None = None,
+    api_key: str = Depends(verify_api_key),
+) -> HTMLResponse:
+    """
+    Analyze a food image and return HTML response.
+    Converts Markdown headers (#, ##, ###) and formatting (*, **) to HTML.
+    """
+    # Validate file type
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    try:
+        # Read image data
+        image_data = await image.read()
+        
+        # Analyze image
+        answer = bot.answer_with_image(image_data, question=question, user_id=user_id)
+        
+        # Convert Markdown to HTML
+        safe_html = markdown_to_html(answer)
+        return HTMLResponse(content=f"<div>{safe_html}</div>")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
