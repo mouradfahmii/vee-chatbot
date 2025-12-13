@@ -27,6 +27,11 @@ class FoodChatbot:
     def __init__(self) -> None:
         self.system_prompt = SYSTEM_PROMPT
 
+    def contains_arabic(self, text: str) -> bool:
+        """Check if text contains Arabic characters."""
+        arabic_pattern = re.compile(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]')
+        return bool(arabic_pattern.search(text))
+
     def is_food_related(self, query: str) -> bool:
         """Check if query is related to food/cooking topics."""
         # Normalize query: remove punctuation and extra spaces for better matching
@@ -145,10 +150,17 @@ class FoodChatbot:
             
             # Validate image is food-related
             if not is_food_image(image_base64):
-                answer = (
-                    "I'm Vee, your culinary assistant. I can only analyze food-related images. "
-                    "Please upload an image of a meal, food, or cooking-related content."
-                )
+                # Respond in the same language as the question
+                if self.contains_arabic(question):
+                    answer = (
+                        "أنا في، مساعدك الطهي. يمكنني فقط تحليل الصور المتعلقة بالطعام. "
+                        "يرجى تحميل صورة لوجبة أو طعام أو محتوى متعلق بالطهي."
+                    )
+                else:
+                    answer = (
+                        "I'm Vee, your culinary assistant. I can only analyze food-related images. "
+                        "Please upload an image of a meal, food, or cooking-related content."
+                    )
                 # Log the declined image
                 conversation_logger.log_conversation(
                     question=f"[IMAGE] {question}",
@@ -171,6 +183,9 @@ class FoodChatbot:
                 analysis_prompt = CALORIE_FOCUS_PROMPT
             else:
                 analysis_prompt = f"{IMAGE_ANALYSIS_PROMPT}\n\nUser question: {question}"
+            
+            # Add language instruction to respond in the same language as the question
+            analysis_prompt = f"{analysis_prompt}\n\nIMPORTANT: Respond in the same language as the user's question. If the question is in Arabic, respond in Arabic. If the question is in English, respond in English."
             
             # Analyze image
             answer = llm_client.analyze_image(image_base64, analysis_prompt)
