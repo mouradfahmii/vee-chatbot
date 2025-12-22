@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import html
 import re
+import uuid
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.chatbot import bot
+from app.conversation_manager import conversation_manager
 from app.ingest import ingest_dataset
 from app.mysql_ingestor import ingest_mysql
 from api.auth import verify_api_key
@@ -77,11 +79,33 @@ async def chat_endpoint(
     """Chat endpoint - requires API key authentication."""
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    # Generate conversation_id if not provided
+    conversation_id = payload.conversation_id or str(uuid.uuid4())
+    
+    # Get conversation history (use manual history if provided for backward compatibility, otherwise use conversation manager)
+    if payload.history is not None:
+        # Backward compatibility: use provided history
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in payload.history]
+    else:
+        # Use conversation manager to get history
+        history_turns = conversation_manager.get_history(conversation_id)
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+    
     try:
-        answer = bot.answer(payload.message, history=payload.history, user_id=payload.user_id)
+        answer = bot.answer(payload.message, history=history if history else None, user_id=payload.user_id)
+        
+        # Store the conversation turn
+        conversation_manager.add_turn(
+            conversation_id=conversation_id,
+            user_message=payload.message,
+            assistant_message=answer,
+            user_id=payload.user_id,
+        )
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return ChatResponse(answer=answer)
+    
+    return ChatResponse(answer=answer, conversation_id=conversation_id)
 
 
 @app.post(
@@ -99,8 +123,29 @@ async def chat_html_endpoint(
     """
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    # Generate conversation_id if not provided
+    conversation_id = payload.conversation_id or str(uuid.uuid4())
+    
+    # Get conversation history (use manual history if provided for backward compatibility, otherwise use conversation manager)
+    if payload.history is not None:
+        # Backward compatibility: use provided history
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in payload.history]
+    else:
+        # Use conversation manager to get history
+        history_turns = conversation_manager.get_history(conversation_id)
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+    
     try:
-        answer = bot.answer(payload.message, history=payload.history, user_id=payload.user_id)
+        answer = bot.answer(payload.message, history=history if history else None, user_id=payload.user_id)
+        
+        # Store the conversation turn
+        conversation_manager.add_turn(
+            conversation_id=conversation_id,
+            user_message=payload.message,
+            assistant_message=answer,
+            user_id=payload.user_id,
+        )
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -112,6 +157,7 @@ async def chat_html_endpoint(
 async def chat_image_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
     question: str = "What is in this image? Estimate the calories.",
+    conversation_id: str | None = None,
     user_id: str | None = None,
     api_key: str = Depends(verify_api_key),
 ) -> ChatResponse:
@@ -120,13 +166,26 @@ async def chat_image_endpoint(
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
     
+    # Generate conversation_id if not provided
+    conversation_id = conversation_id or str(uuid.uuid4())
+    
     try:
         # Read image data
         image_data = await image.read()
         
         # Analyze image
         answer = bot.answer_with_image(image_data, question=question, user_id=user_id)
-        return ChatResponse(answer=answer)
+        
+        # Store the conversation turn (even though image analysis doesn't use history, 
+        # we store it so follow-up questions can reference previous analyses)
+        conversation_manager.add_turn(
+            conversation_id=conversation_id,
+            user_message=f"[IMAGE] {question}",
+            assistant_message=answer,
+            user_id=user_id,
+        )
+        
+        return ChatResponse(answer=answer, conversation_id=conversation_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -139,6 +198,7 @@ async def chat_image_endpoint(
 async def chat_image_html_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
     question: str = "What is in this image? Estimate the calories.",
+    conversation_id: str | None = None,
     user_id: str | None = None,
     api_key: str = Depends(verify_api_key),
 ) -> HTMLResponse:
@@ -150,12 +210,24 @@ async def chat_image_html_endpoint(
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
     
+    # Generate conversation_id if not provided
+    conversation_id = conversation_id or str(uuid.uuid4())
+    
     try:
         # Read image data
         image_data = await image.read()
         
         # Analyze image
         answer = bot.answer_with_image(image_data, question=question, user_id=user_id)
+        
+        # Store the conversation turn (even though image analysis doesn't use history, 
+        # we store it so follow-up questions can reference previous analyses)
+        conversation_manager.add_turn(
+            conversation_id=conversation_id,
+            user_message=f"[IMAGE] {question}",
+            assistant_message=answer,
+            user_id=user_id,
+        )
         
         # Convert Markdown to HTML
         safe_html = markdown_to_html(answer)
