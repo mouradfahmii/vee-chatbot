@@ -30,3 +30,12 @@ class ImageChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     conversation_id: Optional[str] = Field(default=None, description="Conversation ID for this conversation. Use this in subsequent requests to maintain context.")
+
+
+class VoiceChatResponse(BaseModel):
+    """Response model for voice chat endpoints."""
+    transcript: str = Field(..., description="Transcribed text from user's audio input")
+    answer_text: str = Field(..., description="Text version of the chatbot's response")
+    conversation_id: Optional[str] = Field(default=None, description="Conversation ID for this conversation")
+    detected_language: Optional[str] = Field(default=None, description="Detected language code (ar or en)")
+    audio_base64: Optional[str] = Field(default=None, description="Base64 encoded audio response (MP3 format)")

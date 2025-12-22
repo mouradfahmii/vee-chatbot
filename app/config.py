@@ -81,6 +81,19 @@ class Settings(BaseModel):
         default=os.getenv("INGEST_MYSQL_ON_STARTUP", "false").lower() == "true",
         description="If True, ingest MySQL data on application startup.",
     )
+    # Voice/TTS configuration
+    tts_model: str = Field(
+        default=os.getenv("FOOD_BOT_TTS_MODEL", "tts-1"),
+        description="OpenAI TTS model to use (tts-1 or tts-1-hd).",
+    )
+    tts_voice: str = Field(
+        default=os.getenv("FOOD_BOT_TTS_VOICE", "alloy"),
+        description="TTS voice to use. Options: alloy, echo, fable, onyx, nova, shimmer. For Arabic, nova or alloy work well.",
+    )
+    max_audio_size_mb: int = Field(
+        default=int(os.getenv("FOOD_BOT_MAX_AUDIO_SIZE_MB", "25")),
+        description="Maximum audio file size in MB (OpenAI Whisper limit is 25MB).",
+    )
 
 
 settings = Settings()

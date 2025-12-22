@@ -4,15 +4,19 @@ import html
 import re
 import uuid
 
+import base64
+
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app.chatbot import bot
+from app.config import settings
 from app.conversation_manager import conversation_manager
 from app.ingest import ingest_dataset
 from app.mysql_ingestor import ingest_mysql
+from app.voice_utils import get_voice_processor
 from api.auth import verify_api_key
-from api.schemas import ChatRequest, ChatResponse, ImageChatRequest
+from api.schemas import ChatRequest, ChatResponse, ImageChatRequest, VoiceChatResponse
 
 app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
 
@@ -304,3 +308,214 @@ async def reingest_mysql(
         "source": "mysql",
         "tables": table_list or "all"
     }
+
+
+@app.post("/chat/voice", response_model=VoiceChatResponse)
+async def chat_voice_endpoint(
+    audio: UploadFile = File(..., description="Audio file (WebM or MP3) containing user's voice message"),
+    conversation_id: str | None = None,
+    user_id: str | None = None,
+    history_days: int | None = None,
+    api_key: str = Depends(verify_api_key),
+) -> VoiceChatResponse:
+    """
+    Voice chat endpoint - accepts audio input and returns audio response.
+    Supports Arabic and English - responds in the same language as input.
+    """
+    from app.logger import conversation_logger
+    
+    # Generate conversation_id if not provided
+    conversation_id = conversation_id or str(uuid.uuid4())
+    
+    # Validate audio format
+    try:
+        voice_processor = get_voice_processor()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Voice processor initialization failed: {str(e)}")
+    
+    is_valid, audio_format = voice_processor.validate_audio_format(audio.content_type, audio.filename)
+    
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio format. Supported formats: WebM, MP3, WAV, M4A, OGG"
+        )
+    
+    try:
+        # Read audio data
+        audio_data = await audio.read()
+        
+        # Validate audio size
+        if not voice_processor.validate_audio_size(audio_data, max_size_mb=settings.max_audio_size_mb):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Audio file too large. Maximum size: {settings.max_audio_size_mb}MB"
+            )
+        
+        # Convert speech to text
+        transcript, detected_language = voice_processor.speech_to_text(audio_data, audio_format)
+        
+        if not transcript or not transcript.strip():
+            raise HTTPException(status_code=400, detail="Could not transcribe audio. Please ensure audio contains clear speech.")
+        
+        # Get conversation history (similar to text endpoints)
+        history_turns = conversation_manager.get_history(conversation_id)
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+        
+        # Load historical conversations from logs if history_days is specified
+        if history_days is not None and user_id:
+            # Validate history_days: must be 3, 7, or -1 (all history)
+            if history_days not in [3, 7, -1]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="history_days must be 3 (last 3 days), 7 (last 7 days), or -1 (all history)"
+                )
+            historical_turns = conversation_logger.load_user_history_as_turns(
+                user_id=user_id,
+                days=history_days
+            )
+            # Merge historical turns with current conversation history
+            history = historical_turns + history
+        
+        # Process through chatbot
+        answer_text = bot.answer(
+            transcript,
+            history=history if history else None,
+            user_id=user_id,
+            conversation_id=conversation_id
+        )
+        
+        # Store the conversation turn
+        conversation_manager.add_turn(
+            conversation_id=conversation_id,
+            user_message=transcript,
+            assistant_message=answer_text,
+            user_id=user_id,
+        )
+        
+        # Convert text response to speech
+        # Use detected language to ensure voice matches
+        audio_base64 = None
+        try:
+            audio_response = voice_processor.text_to_speech(
+                text=answer_text,
+                language=detected_language,
+                voice=settings.tts_voice,
+                model=settings.tts_model,
+            )
+            audio_base64 = base64.b64encode(audio_response).decode("utf-8")
+        except Exception as tts_error:
+            # If TTS fails, still return the text response
+            # Log the error but don't fail the request
+            import logging
+            logging.warning(f"TTS conversion failed: {tts_error}")
+        
+        return VoiceChatResponse(
+            transcript=transcript,
+            answer_text=answer_text,
+            conversation_id=conversation_id,
+            detected_language=detected_language,
+            audio_base64=audio_base64,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Voice processing error: {str(exc)}") from exc
+
+
+@app.post("/chat/voice/text", response_model=VoiceChatResponse)
+async def chat_voice_text_endpoint(
+    audio: UploadFile = File(..., description="Audio file (WebM or MP3) containing user's voice message"),
+    conversation_id: str | None = None,
+    user_id: str | None = None,
+    history_days: int | None = None,
+    api_key: str = Depends(verify_api_key),
+) -> VoiceChatResponse:
+    """
+    Voice chat endpoint that returns text response instead of audio (for debugging/preview).
+    Accepts audio input, processes it, but returns JSON with text response only.
+    """
+    from app.logger import conversation_logger
+    
+    # Generate conversation_id if not provided
+    conversation_id = conversation_id or str(uuid.uuid4())
+    
+    # Validate audio format
+    try:
+        voice_processor = get_voice_processor()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Voice processor initialization failed: {str(e)}")
+    
+    is_valid, audio_format = voice_processor.validate_audio_format(audio.content_type, audio.filename)
+    
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio format. Supported formats: WebM, MP3, WAV, M4A, OGG"
+        )
+    
+    try:
+        # Read audio data
+        audio_data = await audio.read()
+        
+        # Validate audio size
+        if not voice_processor.validate_audio_size(audio_data, max_size_mb=settings.max_audio_size_mb):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Audio file too large. Maximum size: {settings.max_audio_size_mb}MB"
+            )
+        
+        # Convert speech to text
+        transcript, detected_language = voice_processor.speech_to_text(audio_data, audio_format)
+        
+        if not transcript or not transcript.strip():
+            raise HTTPException(status_code=400, detail="Could not transcribe audio. Please ensure audio contains clear speech.")
+        
+        # Get conversation history
+        history_turns = conversation_manager.get_history(conversation_id)
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+        
+        # Load historical conversations from logs if history_days is specified
+        if history_days is not None and user_id:
+            if history_days not in [3, 7, -1]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="history_days must be 3 (last 3 days), 7 (last 7 days), or -1 (all history)"
+                )
+            historical_turns = conversation_logger.load_user_history_as_turns(
+                user_id=user_id,
+                days=history_days
+            )
+            history = historical_turns + history
+        
+        # Process through chatbot
+        # The bot.answer() method already logs the conversation, so we don't need to log again
+        answer_text = bot.answer(
+            transcript,
+            history=history if history else None,
+            user_id=user_id,
+            conversation_id=conversation_id
+        )
+        
+        # Store the conversation turn
+        conversation_manager.add_turn(
+            conversation_id=conversation_id,
+            user_message=transcript,
+            assistant_message=answer_text,
+            user_id=user_id,
+        )
+        
+        # Return text response only (no audio)
+        return VoiceChatResponse(
+            transcript=transcript,
+            answer_text=answer_text,
+            conversation_id=conversation_id,
+            detected_language=detected_language,
+            audio_base64=None,  # No audio for text endpoint
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Voice processing error: {str(exc)}") from exc
