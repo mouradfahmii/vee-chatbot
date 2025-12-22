@@ -60,6 +60,17 @@ class FoodChatbot:
             prefix = doc.metadata.get("type", "doc")
             chunks.append(f"[{prefix}:{doc.doc_id}] {doc.content}")
         return "\n".join(chunks)
+    
+    def has_relevant_context(self, docs: Sequence[Document]) -> bool:
+        """
+        Check if retrieved documents contain relevant context.
+        Returns True if context exists and appears relevant, False otherwise.
+        """
+        if not docs or len(docs) == 0:
+            return False
+        # If we have documents, consider them relevant
+        # The vector store should already filter by relevance
+        return True
 
     def build_prompt(self, question: str, history: Sequence[dict] | None, docs: Sequence[Document]) -> str:
         return CHAT_PROMPT_TEMPLATE.format(
@@ -99,9 +110,20 @@ class FoodChatbot:
                 messages.append({"role": "user", "content": prompt})
                 answer = llm_client.chat(messages)
             else:
+                # Always query knowledge base first for food-related questions
                 docs = self.build_context(question)
                 num_retrieved_docs = len(docs)
+                has_kb_context = self.has_relevant_context(docs)
+                
+                # Build prompt with knowledge base context
                 prompt = self.build_prompt(question, history, docs)
+                
+                # Add explicit instruction about knowledge base priority
+                if has_kb_context:
+                    prompt += "\n\nCRITICAL: You have RetrievedContext above. You MUST prioritize and use information from the RetrievedContext as your primary source. Only use general knowledge if the context doesn't fully answer the question."
+                else:
+                    prompt += "\n\nNOTE: No relevant knowledge base context was found. You may use your general culinary knowledge, but ONLY for food/cooking topics. Maintain strict scope."
+                
                 messages = [
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": prompt},
