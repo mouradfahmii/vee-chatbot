@@ -80,7 +80,7 @@ class FoodChatbot:
             question=question,
         )
 
-    def answer(self, question: str, history: Sequence[dict] | None = None, user_id: str | None = None) -> str:
+    def answer(self, question: str, history: Sequence[dict] | None = None, user_id: str | None = None, conversation_id: str | None = None) -> str:
         is_food_related = self.is_food_related(question)
         history_length = len(history) if history else 0
         num_retrieved_docs = 0
@@ -138,6 +138,7 @@ class FoodChatbot:
                 num_retrieved_docs=num_retrieved_docs,
                 history_length=history_length,
                 user_id=user_id,
+                conversation_id=conversation_id,
                 metadata={
                     "model": settings.llm_model,
                     "temperature": settings.temperature,
@@ -164,6 +165,7 @@ class FoodChatbot:
         image_data: str | bytes,
         question: str = "What is in this image? Estimate the calories.",
         user_id: str | None = None,
+        conversation_id: str | None = None,
     ) -> str:
         """Analyze an image and answer questions about it."""
         try:
@@ -191,6 +193,7 @@ class FoodChatbot:
                     num_retrieved_docs=0,
                     history_length=0,
                     user_id=user_id,
+                    conversation_id=conversation_id,
                     metadata={
                         "model": settings.vision_model,
                         "has_image": True,
@@ -220,6 +223,7 @@ class FoodChatbot:
                 num_retrieved_docs=0,
                 history_length=0,
                 user_id=user_id,
+                conversation_id=conversation_id,
                 metadata={
                     "model": settings.vision_model,
                     "has_image": True,

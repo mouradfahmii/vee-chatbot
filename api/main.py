@@ -93,7 +93,12 @@ async def chat_endpoint(
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
     
     try:
-        answer = bot.answer(payload.message, history=history if history else None, user_id=payload.user_id)
+        answer = bot.answer(
+            payload.message, 
+            history=history if history else None, 
+            user_id=payload.user_id,
+            conversation_id=conversation_id
+        )
         
         # Store the conversation turn
         conversation_manager.add_turn(
@@ -136,8 +141,30 @@ async def chat_html_endpoint(
         history_turns = conversation_manager.get_history(conversation_id)
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
     
+    # Load historical conversations from logs if history_days is specified
+    if payload.history_days is not None and payload.user_id:
+        from app.logger import conversation_logger
+        # Validate history_days: must be 3, 7, or -1 (all history)
+        if payload.history_days not in [3, 7, -1]:
+            raise HTTPException(
+                status_code=400, 
+                detail="history_days must be 3 (last 3 days), 7 (last 7 days), or -1 (all history)"
+            )
+        historical_turns = conversation_logger.load_user_history_as_turns(
+            user_id=payload.user_id,
+            days=payload.history_days
+        )
+        # Merge historical turns with current conversation history
+        # Historical turns are already sorted oldest first, so prepend them
+        history = historical_turns + history
+    
     try:
-        answer = bot.answer(payload.message, history=history if history else None, user_id=payload.user_id)
+        answer = bot.answer(
+            payload.message, 
+            history=history if history else None, 
+            user_id=payload.user_id,
+            conversation_id=conversation_id
+        )
         
         # Store the conversation turn
         conversation_manager.add_turn(
@@ -174,7 +201,12 @@ async def chat_image_endpoint(
         image_data = await image.read()
         
         # Analyze image
-        answer = bot.answer_with_image(image_data, question=question, user_id=user_id)
+        answer = bot.answer_with_image(
+            image_data, 
+            question=question, 
+            user_id=user_id,
+            conversation_id=conversation_id
+        )
         
         # Store the conversation turn (even though image analysis doesn't use history, 
         # we store it so follow-up questions can reference previous analyses)
@@ -218,7 +250,12 @@ async def chat_image_html_endpoint(
         image_data = await image.read()
         
         # Analyze image
-        answer = bot.answer_with_image(image_data, question=question, user_id=user_id)
+        answer = bot.answer_with_image(
+            image_data, 
+            question=question, 
+            user_id=user_id,
+            conversation_id=conversation_id
+        )
         
         # Store the conversation turn (even though image analysis doesn't use history, 
         # we store it so follow-up questions can reference previous analyses)

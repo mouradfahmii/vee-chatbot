@@ -114,6 +114,7 @@ class ConversationLogger:
         num_retrieved_docs: int = 0,
         history_length: int = 0,
         user_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
         metadata: Optional[dict[str, Any]] = None,
     ) -> None:
         """Log a conversation turn with all relevant details."""
@@ -122,6 +123,7 @@ class ConversationLogger:
         log_entry = {
             "timestamp": timestamp,
             "user_id": user_id,
+            "conversation_id": conversation_id,
             "question": question,
             "answer": answer,
             "is_food_related": is_food_related,
@@ -153,6 +155,114 @@ class ConversationLogger:
     def log_error(self, error: Exception, context: Optional[dict[str, Any]] = None) -> None:
         """Log errors with context."""
         self.logger.error(f"Error occurred: {error}", exc_info=True, extra=context or {})
+    
+    def load_user_history_as_turns(
+        self,
+        user_id: str,
+        days: int,
+        limit: int = 1000
+    ) -> List[dict[str, str]]:
+        """
+        Load user's past conversations from logs and convert to conversation turn format.
+        
+        Args:
+            user_id: User identifier to filter by
+            days: Number of days to look back. Use -1 for all history.
+            limit: Maximum number of conversations to load (default: 1000)
+            
+        Returns:
+            List of conversation turns in format [{"user": "...", "assistant": "..."}]
+            Sorted by timestamp (oldest first)
+        """
+        from datetime import timedelta
+        
+        if not user_id:
+            return []
+        
+        turns = []
+        
+        # Handle "all history" case (days = -1)
+        if days == -1:
+            # Load all available log files
+            cutoff_date = None
+            max_days_to_check = 365  # Check up to 1 year of logs
+        else:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            max_days_to_check = days + 1
+        
+        # Iterate through log files from today backwards
+        current_date = datetime.utcnow()
+        checked_dates = set()
+        
+        for _ in range(max_days_to_check):  # Include today
+            date_str = current_date.strftime("%Y-%m-%d")
+            
+            # Skip if we've already checked this date
+            if date_str in checked_dates:
+                current_date -= timedelta(days=1)
+                continue
+            checked_dates.add(date_str)
+            
+            log_file = self.log_dir / f"conversations_{date_str}.jsonl"
+            
+            if log_file.exists():
+                try:
+                    with open(log_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            try:
+                                entry = json.loads(line.strip())
+                                entry_user_id = entry.get("user_id")
+                                
+                                # Filter by user_id
+                                if entry_user_id == user_id:
+                                    # Parse timestamp and check if within range
+                                    try:
+                                        entry_timestamp_str = entry.get("timestamp", "")
+                                        # Handle both with and without timezone
+                                        if "Z" in entry_timestamp_str:
+                                            entry_timestamp = datetime.fromisoformat(
+                                                entry_timestamp_str.replace("Z", "+00:00")
+                                            )
+                                        else:
+                                            entry_timestamp = datetime.fromisoformat(entry_timestamp_str)
+                                        
+                                        # Convert to UTC if needed
+                                        if entry_timestamp.tzinfo is not None:
+                                            entry_timestamp = entry_timestamp.replace(tzinfo=None)
+                                        
+                                        # If cutoff_date is None (all history), include all entries
+                                        # Otherwise, check if entry is within date range
+                                        if cutoff_date is None or entry_timestamp >= cutoff_date:
+                                            turns.append({
+                                                "user": entry.get("question", ""),
+                                                "assistant": entry.get("answer", ""),
+                                                "timestamp": entry_timestamp_str,
+                                            })
+                                    except (ValueError, KeyError) as e:
+                                        # Skip entries with invalid timestamps
+                                        continue
+                            except (json.JSONDecodeError, KeyError) as e:
+                                # Skip malformed entries
+                                continue
+                except Exception as e:
+                    self.logger.warning(f"Error reading log file {log_file}: {e}")
+            
+            current_date -= timedelta(days=1)
+            # Stop if we've gone past the cutoff date (unless loading all history)
+            if cutoff_date is not None and current_date < cutoff_date:
+                break
+            # Stop if we've checked enough days (for all history, stop after reasonable limit)
+            if days == -1 and len(checked_dates) >= max_days_to_check:
+                break
+        
+        # Sort by timestamp (oldest first) and limit results
+        try:
+            turns.sort(key=lambda x: x.get("timestamp", ""))
+        except Exception:
+            # If sorting fails, just return as-is
+            pass
+        
+        return turns[:limit]
 
 
 # Global logger instance
