@@ -181,7 +181,8 @@ async def chat_html_endpoint(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     safe_html = markdown_to_html(answer)
-    return HTMLResponse(content=f"<div>{safe_html}</div>")
+    escaped_conversation_id = html.escape(conversation_id) if conversation_id else ""
+    return HTMLResponse(content=f'<div data-conversation-id="{escaped_conversation_id}">{safe_html}</div>')
 
 
 @app.post("/chat/image", response_model=ChatResponse)
@@ -272,7 +273,8 @@ async def chat_image_html_endpoint(
         
         # Convert Markdown to HTML
         safe_html = markdown_to_html(answer)
-        return HTMLResponse(content=f"<div>{safe_html}</div>")
+        escaped_conversation_id = html.escape(conversation_id) if conversation_id else ""
+        return HTMLResponse(content=f'<div data-conversation-id="{escaped_conversation_id}">{safe_html}</div>')
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
