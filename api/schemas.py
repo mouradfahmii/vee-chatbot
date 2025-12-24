@@ -39,3 +39,36 @@ class VoiceChatResponse(BaseModel):
     conversation_id: Optional[str] = Field(default=None, description="Conversation ID for this conversation")
     detected_language: Optional[str] = Field(default=None, description="Detected language code (ar or en)")
     audio_base64: Optional[str] = Field(default=None, description="Base64 encoded audio response (MP3 format)")
+
+
+class ConversationMessage(BaseModel):
+    """Represents a single message in a conversation."""
+    question: str = Field(..., description="User's question")
+    answer: str = Field(..., description="Assistant's response")
+    timestamp: str = Field(..., description="ISO timestamp of when the message was sent")
+
+
+class ConversationSummary(BaseModel):
+    """Represents a conversation summary for the list view."""
+    conversation_id: str = Field(..., description="Unique conversation identifier")
+    title: str = Field(..., description="First question in the conversation (truncated to 100 chars)")
+    preview: str = Field(..., description="Last message preview (truncated to 150 chars)")
+    message_count: int = Field(..., description="Number of messages in the conversation")
+    created_at: str = Field(..., description="ISO timestamp of when the conversation was created")
+    last_updated: str = Field(..., description="ISO timestamp of the most recent message")
+
+
+class ConversationListResponse(BaseModel):
+    """Response model for listing conversations."""
+    conversations: List[ConversationSummary] = Field(..., description="List of conversation summaries")
+    total: int = Field(..., description="Total number of conversations")
+
+
+class ConversationDetailResponse(BaseModel):
+    """Response model for getting full conversation history."""
+    conversation_id: str = Field(..., description="Unique conversation identifier")
+    user_id: str = Field(..., description="User identifier who owns this conversation")
+    messages: List[ConversationMessage] = Field(..., description="List of messages in chronological order")
+    created_at: str = Field(..., description="ISO timestamp of when the conversation was created")
+    last_updated: str = Field(..., description="ISO timestamp of the most recent message")
+    message_count: int = Field(..., description="Total number of messages in the conversation")

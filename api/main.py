@@ -16,7 +16,16 @@ from app.ingest import ingest_dataset
 from app.mysql_ingestor import ingest_mysql
 from app.voice_utils import get_voice_processor
 from api.auth import verify_api_key
-from api.schemas import ChatRequest, ChatResponse, ImageChatRequest, VoiceChatResponse
+from api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    ConversationDetailResponse,
+    ConversationListResponse,
+    ConversationMessage,
+    ConversationSummary,
+    ImageChatRequest,
+    VoiceChatResponse,
+)
 
 app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
 
@@ -521,3 +530,85 @@ async def chat_voice_text_endpoint(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Voice processing error: {str(exc)}") from exc
+
+
+@app.get("/conversations", response_model=ConversationListResponse)
+async def list_conversations_endpoint(
+    user_id: str,
+    api_key: str = Depends(verify_api_key),
+) -> ConversationListResponse:
+    """
+    List all conversations for a user.
+    Returns conversation summaries sorted by last_updated (most recent first).
+    Maximum 100 conversations returned.
+    """
+    from app.logger import conversation_logger
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    
+    try:
+        conversations_dict = conversation_logger.list_user_conversations(user_id=user_id, max_conversations=100)
+        
+        # Convert dicts to ConversationSummary models
+        conversations = [ConversationSummary(**conv) for conv in conversations_dict]
+        
+        return ConversationListResponse(
+            conversations=conversations,
+            total=len(conversations),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error listing conversations: {str(exc)}") from exc
+
+
+@app.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
+async def get_conversation_endpoint(
+    conversation_id: str,
+    user_id: str,
+    api_key: str = Depends(verify_api_key),
+) -> ConversationDetailResponse:
+    """
+    Get full conversation history for a specific conversation.
+    Security: Only returns conversations that match both conversation_id AND user_id.
+    Returns 404 if conversation not found or user_id doesn't match.
+    """
+    from app.logger import conversation_logger
+    
+    if not conversation_id:
+        raise HTTPException(status_code=400, detail="conversation_id is required")
+    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    
+    try:
+        messages = conversation_logger.get_conversation_history(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+        
+        if not messages:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found or you don't have access to it"
+            )
+        
+        # Extract metadata from messages
+        created_at = messages[0]["timestamp"] if messages else ""
+        last_updated = messages[-1]["timestamp"] if messages else ""
+        message_count = len(messages)
+        
+        # Convert dicts to ConversationMessage models
+        message_models = [ConversationMessage(**msg) for msg in messages]
+        
+        return ConversationDetailResponse(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            messages=message_models,
+            created_at=created_at,
+            last_updated=last_updated,
+            message_count=message_count,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error retrieving conversation: {str(exc)}") from exc
