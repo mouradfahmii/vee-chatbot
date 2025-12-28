@@ -405,7 +405,7 @@ async def chat_voice_endpoint(
             conversation_id=conversation_id
         )
         
-        # Convert Markdown to HTML for answer_text
+        # Convert Markdown to HTML for data field
         answer_text_html = markdown_to_html(answer_markdown)
         
         # Store the conversation turn (store original markdown for consistency)
@@ -434,8 +434,10 @@ async def chat_voice_endpoint(
             logging.warning(f"TTS conversion failed: {tts_error}")
         
         return VoiceChatResponse(
+            status=200,
+            message="ok",
             transcript=transcript,
-            answer_text=answer_text_html,
+            data=answer_text_html,
             conversation_id=conversation_id,
             detected_language=detected_language,
             audio_base64=audio_base64,
@@ -521,7 +523,7 @@ async def chat_voice_text_endpoint(
             conversation_id=conversation_id
         )
         
-        # Convert Markdown to HTML for answer_text
+        # Convert Markdown to HTML for data field
         answer_text_html = markdown_to_html(answer_markdown)
         
         # Store the conversation turn (store original markdown for consistency)
@@ -534,8 +536,10 @@ async def chat_voice_text_endpoint(
         
         # Return text response only (no audio)
         return VoiceChatResponse(
+            status=200,
+            message="ok",
             transcript=transcript,
-            answer_text=answer_text_html,
+            data=answer_text_html,
             conversation_id=conversation_id,
             detected_language=detected_language,
             audio_base64=None,  # No audio for text endpoint

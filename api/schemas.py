@@ -34,8 +34,10 @@ class ChatResponse(BaseModel):
 
 class VoiceChatResponse(BaseModel):
     """Response model for voice chat endpoints."""
+    status: int = Field(default=200, description="HTTP status code")
+    message: str = Field(default="ok", description="Response message")
     transcript: str = Field(..., description="Transcribed text from user's audio input")
-    answer_text: str = Field(..., description="HTML version of the chatbot's response (converted from Markdown)")
+    data: str = Field(..., description="HTML version of the chatbot's response (converted from Markdown)")
     conversation_id: Optional[str] = Field(default=None, description="Conversation ID for this conversation")
     detected_language: Optional[str] = Field(default=None, description="Detected language code (ar or en)")
     audio_base64: Optional[str] = Field(default=None, description="Base64 encoded audio response (MP3 format)")
