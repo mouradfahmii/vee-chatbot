@@ -398,27 +398,30 @@ async def chat_voice_endpoint(
             history = historical_turns + history
         
         # Process through chatbot
-        answer_text = bot.answer(
+        answer_markdown = bot.answer(
             transcript,
             history=history if history else None,
             user_id=user_id,
             conversation_id=conversation_id
         )
         
-        # Store the conversation turn
+        # Convert Markdown to HTML for answer_text
+        answer_text_html = markdown_to_html(answer_markdown)
+        
+        # Store the conversation turn (store original markdown for consistency)
         conversation_manager.add_turn(
             conversation_id=conversation_id,
             user_message=transcript,
-            assistant_message=answer_text,
+            assistant_message=answer_markdown,
             user_id=user_id,
         )
         
-        # Convert text response to speech
+        # Convert text response to speech (use original markdown, not HTML)
         # Use detected language to ensure voice matches
         audio_base64 = None
         try:
             audio_response = voice_processor.text_to_speech(
-                text=answer_text,
+                text=answer_markdown,
                 language=detected_language,
                 voice=settings.tts_voice,
                 model=settings.tts_model,
@@ -432,7 +435,7 @@ async def chat_voice_endpoint(
         
         return VoiceChatResponse(
             transcript=transcript,
-            answer_text=answer_text,
+            answer_text=answer_text_html,
             conversation_id=conversation_id,
             detected_language=detected_language,
             audio_base64=audio_base64,
@@ -511,25 +514,28 @@ async def chat_voice_text_endpoint(
         
         # Process through chatbot
         # The bot.answer() method already logs the conversation, so we don't need to log again
-        answer_text = bot.answer(
+        answer_markdown = bot.answer(
             transcript,
             history=history if history else None,
             user_id=user_id,
             conversation_id=conversation_id
         )
         
-        # Store the conversation turn
+        # Convert Markdown to HTML for answer_text
+        answer_text_html = markdown_to_html(answer_markdown)
+        
+        # Store the conversation turn (store original markdown for consistency)
         conversation_manager.add_turn(
             conversation_id=conversation_id,
             user_message=transcript,
-            assistant_message=answer_text,
+            assistant_message=answer_markdown,
             user_id=user_id,
         )
         
         # Return text response only (no audio)
         return VoiceChatResponse(
             transcript=transcript,
-            answer_text=answer_text,
+            answer_text=answer_text_html,
             conversation_id=conversation_id,
             detected_language=detected_language,
             audio_base64=None,  # No audio for text endpoint
