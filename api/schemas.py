@@ -72,3 +72,11 @@ class ConversationDetailResponse(BaseModel):
     created_at: str = Field(..., description="ISO timestamp of when the conversation was created")
     last_updated: str = Field(..., description="ISO timestamp of the most recent message")
     message_count: int = Field(..., description="Total number of messages in the conversation")
+
+
+class HTMLChatResponse(BaseModel):
+    """Response model for HTML chat endpoints."""
+    status: int = Field(default=200, description="HTTP status code")
+    message: str = Field(default="ok", description="Response message")
+    conversation_id: Optional[str] = Field(default=None, description="Conversation ID for this conversation")
+    data: str = Field(..., description="HTML content of the chatbot's response")

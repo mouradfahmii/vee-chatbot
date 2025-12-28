@@ -23,6 +23,7 @@ from api.schemas import (
     ConversationListResponse,
     ConversationMessage,
     ConversationSummary,
+    HTMLChatResponse,
     ImageChatRequest,
     VoiceChatResponse,
 )
@@ -128,13 +129,13 @@ async def chat_endpoint(
 
 @app.post(
     "/chat/html",
-    response_class=HTMLResponse,
-    responses={200: {"content": {"text/html": {}}}},
+    response_model=HTMLChatResponse,
+    responses={200: {"content": {"application/json": {}}}},
 )
 async def chat_html_endpoint(
     payload: ChatRequest,
     api_key: str = Depends(verify_api_key),
-) -> HTMLResponse:
+) -> HTMLChatResponse:
     """
     Chat endpoint that returns HTML instead of JSON.
     Converts Markdown headers (#, ##, ###) and formatting (*, **) to HTML.
@@ -190,8 +191,12 @@ async def chat_html_endpoint(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     safe_html = markdown_to_html(answer)
-    escaped_conversation_id = html.escape(conversation_id) if conversation_id else ""
-    return HTMLResponse(content=f'<div data-conversation-id="{escaped_conversation_id}">{safe_html}</div>')
+    return HTMLChatResponse(
+        status=200,
+        message="ok",
+        conversation_id=conversation_id,
+        data=safe_html
+    )
 
 
 @app.post("/chat/image", response_model=ChatResponse)
@@ -238,8 +243,8 @@ async def chat_image_endpoint(
 
 @app.post(
     "/chat/image/html",
-    response_class=HTMLResponse,
-    responses={200: {"content": {"text/html": {}}}},
+    response_model=HTMLChatResponse,
+    responses={200: {"content": {"application/json": {}}}},
 )
 async def chat_image_html_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
@@ -247,7 +252,7 @@ async def chat_image_html_endpoint(
     conversation_id: str | None = None,
     user_id: str | None = None,
     api_key: str = Depends(verify_api_key),
-) -> HTMLResponse:
+) -> HTMLChatResponse:
     """
     Analyze a food image and return HTML response.
     Converts Markdown headers (#, ##, ###) and formatting (*, **) to HTML.
@@ -282,8 +287,12 @@ async def chat_image_html_endpoint(
         
         # Convert Markdown to HTML
         safe_html = markdown_to_html(answer)
-        escaped_conversation_id = html.escape(conversation_id) if conversation_id else ""
-        return HTMLResponse(content=f'<div data-conversation-id="{escaped_conversation_id}">{safe_html}</div>')
+        return HTMLChatResponse(
+            status=200,
+            message="ok",
+            conversation_id=conversation_id,
+            data=safe_html
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
