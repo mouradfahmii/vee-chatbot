@@ -63,6 +63,15 @@ class Settings(BaseModel):
         default=float(os.getenv("FOOD_BOT_TEMPERATURE", "0.5")),
         description="Sampling temperature passed to the language model. Higher values (0.5-0.7) create more varied responses.",
     )
+    # Timeout configuration
+    llm_timeout_seconds: int = Field(
+        default=int(os.getenv("FOOD_BOT_LLM_TIMEOUT", "60")),
+        description="Timeout in seconds for LLM API calls (text chat). Default: 60 seconds.",
+    )
+    vision_timeout_seconds: int = Field(
+        default=int(os.getenv("FOOD_BOT_VISION_TIMEOUT", "90")),
+        description="Timeout in seconds for vision model API calls (image analysis). Default: 90 seconds.",
+    )
     # AWS S3 logging configuration
     aws_s3_bucket: Optional[str] = Field(
         default=os.getenv("AWS_S3_LOG_BUCKET"),

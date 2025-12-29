@@ -32,13 +32,36 @@ class FoodChatbot:
         arabic_pattern = re.compile(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]')
         return bool(arabic_pattern.search(text))
 
-    def is_food_related(self, query: str) -> bool:
-        """Check if query is related to food/cooking topics."""
+    def is_food_related(self, query: str, history: Sequence[dict] | None = None) -> bool:
+        """
+        Check if query is related to food/cooking topics.
+        
+        Args:
+            query: The user's question or message
+            history: Optional conversation history to check for context (e.g., recent image analysis)
+        
+        Returns:
+            True if the query is food-related, False otherwise
+        """
         # Normalize query: remove punctuation and extra spaces for better matching
         query_normalized = re.sub(r'[^\w\s]', '', query.lower())
         query_normalized = ' '.join(query_normalized.split())
         # Check if any keyword appears in the normalized query
-        return any(keyword in query_normalized for keyword in self.FOOD_KEYWORDS)
+        if any(keyword in query_normalized for keyword in self.FOOD_KEYWORDS):
+            return True
+        
+        # Check if this is a follow-up to image analysis
+        # If history exists and contains recent image analysis, treat follow-up questions as food-related
+        if history:
+            # Check only the most recent 2 turns to see if there was an image analysis
+            # This ensures immediate follow-up questions after image uploads are treated as food-related
+            # but prevents old image analyses from affecting unrelated questions
+            for turn in reversed(history[-2:]):  # Check most recent 2 turns only
+                if turn.get('user', '').startswith('[IMAGE]'):
+                    # This is a follow-up to image analysis - treat as food-related
+                    return True
+        
+        return False
 
     def build_context(self, query: str) -> List[Document]:
         return vector_store.query(query, n_results=settings.max_context_documents)
@@ -81,7 +104,7 @@ class FoodChatbot:
         )
 
     def answer(self, question: str, history: Sequence[dict] | None = None, user_id: str | None = None, conversation_id: str | None = None) -> str:
-        is_food_related = self.is_food_related(question)
+        is_food_related = self.is_food_related(question, history=history)
         history_length = len(history) if history else 0
         num_retrieved_docs = 0
         answer = ""
@@ -108,7 +131,7 @@ class FoodChatbot:
                         messages.append({"role": "user", "content": turn["user"]})
                         messages.append({"role": "assistant", "content": turn["assistant"]})
                 messages.append({"role": "user", "content": prompt})
-                answer = llm_client.chat(messages)
+                answer = llm_client.chat(messages, timeout=settings.llm_timeout_seconds)
             else:
                 # Always query knowledge base first for food-related questions
                 docs = self.build_context(question)
@@ -128,7 +151,7 @@ class FoodChatbot:
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": prompt},
                 ]
-                answer = llm_client.chat(messages)
+                answer = llm_client.chat(messages, timeout=settings.llm_timeout_seconds)
             
             # Log the conversation
             conversation_logger.log_conversation(
@@ -147,6 +170,22 @@ class FoodChatbot:
             
             return answer
             
+        except TimeoutError as e:
+            # Log timeout errors with context
+            conversation_logger.log_error(
+                e,
+                context={
+                    "question": question,
+                    "is_food_related": is_food_related,
+                    "history_length": history_length,
+                    "user_id": user_id,
+                    "error_type": "timeout",
+                },
+            )
+            # Re-raise with user-friendly message
+            raise TimeoutError(
+                f"The request took too long to process. Please try again with a simpler question or check your connection."
+            ) from e
         except Exception as e:
             # Log errors
             conversation_logger.log_error(
@@ -213,7 +252,7 @@ class FoodChatbot:
             analysis_prompt = f"{analysis_prompt}\n\nIMPORTANT: Respond in the same language as the user's question. If the question is in Arabic, respond in Arabic. If the question is in English, respond in English."
             
             # Analyze image
-            answer = llm_client.analyze_image(image_base64, analysis_prompt)
+            answer = llm_client.analyze_image(image_base64, analysis_prompt, timeout=settings.vision_timeout_seconds)
             
             # Log the conversation
             conversation_logger.log_conversation(
@@ -233,6 +272,22 @@ class FoodChatbot:
             
             return answer
             
+        except TimeoutError as e:
+            # Log timeout errors with context
+            conversation_logger.log_error(
+                e,
+                context={
+                    "question": f"[IMAGE] {question}",
+                    "is_food_related": True,
+                    "user_id": user_id,
+                    "has_image": True,
+                    "error_type": "timeout",
+                },
+            )
+            # Re-raise with user-friendly message
+            raise TimeoutError(
+                f"Image analysis took too long. Please try again with a smaller image or a simpler question."
+            ) from e
         except Exception as e:
             conversation_logger.log_error(
                 e,

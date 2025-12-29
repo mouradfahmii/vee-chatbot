@@ -121,6 +121,8 @@ async def chat_endpoint(
             assistant_message=answer,
             user_id=payload.user_id,
         )
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=f"Request timeout: {str(exc)}") from exc
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     
@@ -187,6 +189,8 @@ async def chat_html_endpoint(
             assistant_message=answer,
             user_id=payload.user_id,
         )
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=f"Request timeout: {str(exc)}") from exc
     except Exception as exc:  # pragma: no cover - propagate LLM errors with context
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -237,6 +241,8 @@ async def chat_image_endpoint(
         )
         
         return ChatResponse(answer=answer, conversation_id=conversation_id)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=f"Image analysis timeout: {str(exc)}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -293,6 +299,8 @@ async def chat_image_html_endpoint(
             conversation_id=conversation_id,
             data=safe_html
         )
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=f"Image analysis timeout: {str(exc)}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -445,6 +453,8 @@ async def chat_voice_endpoint(
         
     except HTTPException:
         raise
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=f"Voice processing timeout: {str(exc)}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Voice processing error: {str(exc)}") from exc
 
@@ -547,6 +557,8 @@ async def chat_voice_text_endpoint(
         
     except HTTPException:
         raise
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=f"Voice processing timeout: {str(exc)}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Voice processing error: {str(exc)}") from exc
 
