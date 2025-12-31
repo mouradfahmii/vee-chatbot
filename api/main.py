@@ -223,16 +223,20 @@ async def chat_image_endpoint(
         # Read image data
         image_data = await image.read()
         
-        # Analyze image
+        # Get conversation history (similar to text chat endpoint)
+        history_turns = conversation_manager.get_history(conversation_id)
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+        
+        # Analyze image with conversation history for context
         answer = bot.answer_with_image(
             image_data, 
-            question=question, 
+            question=question,
+            history=history if history else None,
             user_id=user_id,
             conversation_id=conversation_id
         )
         
-        # Store the conversation turn (even though image analysis doesn't use history, 
-        # we store it so follow-up questions can reference previous analyses)
+        # Store the conversation turn (image analysis now uses history for context)
         conversation_manager.add_turn(
             conversation_id=conversation_id,
             user_message=f"[IMAGE] {question}",
@@ -274,16 +278,20 @@ async def chat_image_html_endpoint(
         # Read image data
         image_data = await image.read()
         
-        # Analyze image
+        # Get conversation history (similar to text chat endpoint)
+        history_turns = conversation_manager.get_history(conversation_id)
+        history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+        
+        # Analyze image with conversation history for context
         answer = bot.answer_with_image(
             image_data, 
-            question=question, 
+            question=question,
+            history=history if history else None,
             user_id=user_id,
             conversation_id=conversation_id
         )
         
-        # Store the conversation turn (even though image analysis doesn't use history, 
-        # we store it so follow-up questions can reference previous analyses)
+        # Store the conversation turn (image analysis now uses history for context)
         conversation_manager.add_turn(
             conversation_id=conversation_id,
             user_message=f"[IMAGE] {question}",

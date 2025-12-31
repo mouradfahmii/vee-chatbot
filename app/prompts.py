@@ -100,7 +100,12 @@ Assistant Instructions:
 
 
 IMAGE_ANALYSIS_PROMPT = """
-Analyze this food image and provide detailed information about:
+FIRST: Check if this image contains food, meals, cooking, or nutrition-related content.
+- If the image does NOT show food, meals, ingredients, cooking, kitchen scenes, or anything food-related, 
+  respond with ONLY: "NOT_FOOD"
+- If the image IS food-related, proceed with the analysis below.
+
+If the image is food-related, analyze it and provide detailed information about:
 
 1. **Meal Identification**: What meal or dish is shown? Describe the main components.
 2. **Ingredients**: List the visible ingredients you can identify.
@@ -114,10 +119,17 @@ Analyze this food image and provide detailed information about:
 
 Be specific and realistic with your estimates. If you cannot clearly identify something, say so.
 Format your response clearly with sections for each aspect.
+
+IMPORTANT: If conversation history is provided above, this is part of an ongoing conversation. Continue naturally and reference previous context when relevant. Do NOT repeat introductions or start from the beginning. If the user is asking about a previous image analysis, reference that analysis naturally.
 """
 
 CALORIE_FOCUS_PROMPT = """
-Analyze this food image and provide a calorie estimate.
+FIRST: Check if this image contains food, meals, cooking, or nutrition-related content.
+- If the image does NOT show food, meals, ingredients, cooking, kitchen scenes, or anything food-related, 
+  respond with ONLY: "NOT_FOOD"
+- If the image IS food-related, proceed with the analysis below.
+
+If the image is food-related, analyze it and provide a calorie estimate.
 
 Focus on:
 - Identifying the meal/food items
@@ -127,4 +139,6 @@ Focus on:
 
 Format: "Estimated calories: [number] kcal (confidence: [level])"
 Then provide a brief breakdown of what you see.
+
+IMPORTANT: If conversation history is provided above, this is part of an ongoing conversation. Continue naturally and reference previous context when relevant. Do NOT repeat introductions or start from the beginning. If the user is asking about a previous image analysis, reference that analysis naturally.
 """

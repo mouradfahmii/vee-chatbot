@@ -4,7 +4,8 @@ import re
 from typing import List, Sequence
 
 from app.config import settings
-from app.image_validator import is_food_image
+# Note: is_food_image is kept for backward compatibility but validation is now combined with analysis
+# from app.image_validator import is_food_image
 from app.image_utils import encode_image_to_base64
 from app.llm import llm_client
 from app.logger import conversation_logger
@@ -203,16 +204,65 @@ class FoodChatbot:
         self,
         image_data: str | bytes,
         question: str = "What is in this image? Estimate the calories.",
+        history: Sequence[dict] | None = None,
         user_id: str | None = None,
         conversation_id: str | None = None,
     ) -> str:
-        """Analyze an image and answer questions about it."""
+        """
+        Analyze an image and answer questions about it.
+        
+        Optimization: Validation is combined with analysis in a single API call for faster processing.
+        The prompt includes a validation check that returns "NOT_FOOD" if the image is not food-related.
+        
+        Args:
+            image_data: Image data (bytes or file path)
+            question: Question about the image
+            history: Optional conversation history to provide context for follow-up questions
+            user_id: Optional user identifier
+            conversation_id: Optional conversation identifier
+        """
         try:
-            # Encode image to base64
+            # Encode image to base64 (with aggressive optimization: 1024x1024, quality 75)
             image_base64 = encode_image_to_base64(image_data)
             
-            # Validate image is food-related
-            if not is_food_image(image_base64):
+            # Validation is now combined with analysis in a single API call for better performance
+            # This eliminates the separate validation call, reducing processing time significantly
+            
+            # Determine which prompt to use based on question
+            question_lower = question.lower()
+            if "calorie" in question_lower or "calories" in question_lower:
+                base_prompt = CALORIE_FOCUS_PROMPT
+            else:
+                base_prompt = IMAGE_ANALYSIS_PROMPT
+            
+            # Build the analysis prompt with conversation history if available
+            if history and len(history) > 0:
+                # Format history for inclusion in prompt
+                history_text = "\n".join([
+                    f"User: {turn.get('user', '')}\nAssistant: {turn.get('assistant', '')}"
+                    for turn in history
+                ])
+                analysis_prompt = f"""{base_prompt}
+
+<ConversationHistory>
+{history_text}
+</ConversationHistory>
+
+IMPORTANT: This is a follow-up question in an ongoing conversation. Continue naturally and reference previous context when relevant. Do NOT repeat introductions or start from the beginning. If the user is asking about a previous image analysis, reference that analysis naturally.
+
+User question: {question}"""
+            else:
+                analysis_prompt = f"{base_prompt}\n\nUser question: {question}"
+            
+            # Add language instruction to respond in the same language as the question
+            analysis_prompt = f"{analysis_prompt}\n\nIMPORTANT: Respond in the same language as the user's question. If the question is in Arabic, respond in Arabic. If the question is in English, respond in English."
+            
+            # Analyze image (validation is combined in the prompt)
+            answer = llm_client.analyze_image(image_base64, analysis_prompt, timeout=settings.vision_timeout_seconds)
+            
+            # Check if the response indicates the image is not food-related
+            # The prompt instructs the model to return "NOT_FOOD" if the image is not food-related
+            if answer.strip().upper() == "NOT_FOOD" or answer.strip().upper().startswith("NOT_FOOD"):
                 # Respond in the same language as the question
                 if self.contains_arabic(question):
                     answer = (
@@ -237,36 +287,26 @@ class FoodChatbot:
                         "model": settings.vision_model,
                         "has_image": True,
                         "image_validated": False,
+                        "validation_combined": True,
                     },
                 )
                 return answer
             
-            # Determine which prompt to use based on question
-            question_lower = question.lower()
-            if "calorie" in question_lower or "calories" in question_lower:
-                analysis_prompt = CALORIE_FOCUS_PROMPT
-            else:
-                analysis_prompt = f"{IMAGE_ANALYSIS_PROMPT}\n\nUser question: {question}"
-            
-            # Add language instruction to respond in the same language as the question
-            analysis_prompt = f"{analysis_prompt}\n\nIMPORTANT: Respond in the same language as the user's question. If the question is in Arabic, respond in Arabic. If the question is in English, respond in English."
-            
-            # Analyze image
-            answer = llm_client.analyze_image(image_base64, analysis_prompt, timeout=settings.vision_timeout_seconds)
-            
-            # Log the conversation
+            # Image is food-related - log the successful analysis
+            history_length = len(history) if history else 0
             conversation_logger.log_conversation(
                 question=f"[IMAGE] {question}",
                 answer=answer,
                 is_food_related=True,
                 num_retrieved_docs=0,
-                history_length=0,
+                history_length=history_length,
                 user_id=user_id,
                 conversation_id=conversation_id,
                 metadata={
                     "model": settings.vision_model,
                     "has_image": True,
                     "image_validated": True,
+                    "validation_combined": True,
                 },
             )
             

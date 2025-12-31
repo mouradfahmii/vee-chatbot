@@ -103,6 +103,23 @@ class Settings(BaseModel):
         default=int(os.getenv("FOOD_BOT_MAX_AUDIO_SIZE_MB", "25")),
         description="Maximum audio file size in MB (OpenAI Whisper limit is 25MB).",
     )
+    # Image optimization configuration
+    image_max_size: int = Field(
+        default=int(os.getenv("FOOD_BOT_IMAGE_MAX_SIZE", "1024")),
+        description="Maximum image dimension (width or height) in pixels. Images larger than this will be resized. Default: 1024 (aggressive optimization for faster processing).",
+    )
+    image_quality: int = Field(
+        default=int(os.getenv("FOOD_BOT_IMAGE_QUALITY", "75")),
+        description="JPEG quality for image compression (1-100). Lower values reduce file size and processing time. Default: 75 (aggressive optimization).",
+    )
+    skip_image_validation: bool = Field(
+        default=os.getenv("FOOD_BOT_SKIP_IMAGE_VALIDATION", "false").lower() == "true",
+        description="If True, skip separate validation step and combine validation with analysis (faster, but may process non-food images). Default: False.",
+    )
+    image_validation_model: str = Field(
+        default=os.getenv("FOOD_BOT_IMAGE_VALIDATION_MODEL", "openai/gpt-4o-mini"),
+        description="Model to use for image validation (if separate validation is enabled). Use faster/cheaper model for validation. Default: gpt-4o-mini.",
+    )
 
 
 settings = Settings()
