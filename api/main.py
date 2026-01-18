@@ -94,6 +94,9 @@ async def chat_endpoint(
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     
+    if not payload.user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    
     # Generate conversation_id if not provided
     conversation_id = payload.conversation_id or str(uuid.uuid4())
     
@@ -144,6 +147,9 @@ async def chat_html_endpoint(
     """
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    if not payload.user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
     
     # Generate conversation_id if not provided
     conversation_id = payload.conversation_id or str(uuid.uuid4())
@@ -208,13 +214,17 @@ async def chat_image_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
     question: str = "What is in this image? Estimate the calories.",
     conversation_id: str | None = None,
-    user_id: str | None = None,
+    user_id: str = ...,
     api_key: str = Depends(verify_api_key),
 ) -> ChatResponse:
     """Analyze a food image and answer questions about it - requires API key authentication."""
     # Validate file type
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Validate user_id
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
     
     # Generate conversation_id if not provided
     conversation_id = conversation_id or str(uuid.uuid4())
@@ -260,7 +270,7 @@ async def chat_image_html_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
     question: str = "What is in this image? Estimate the calories.",
     conversation_id: str | None = None,
-    user_id: str | None = None,
+    user_id: str = ...,
     api_key: str = Depends(verify_api_key),
 ) -> HTMLChatResponse:
     """
@@ -270,6 +280,10 @@ async def chat_image_html_endpoint(
     # Validate file type
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Validate user_id
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
     
     # Generate conversation_id if not provided
     conversation_id = conversation_id or str(uuid.uuid4())
@@ -350,7 +364,7 @@ async def reingest_mysql(
 async def chat_voice_endpoint(
     audio: UploadFile = File(..., description="Audio file (WebM or MP3) containing user's voice message"),
     conversation_id: str | None = None,
-    user_id: str | None = None,
+    user_id: str = ...,
     history_days: int | None = None,
     api_key: str = Depends(verify_api_key),
 ) -> VoiceChatResponse:
@@ -359,6 +373,10 @@ async def chat_voice_endpoint(
     Supports Arabic and English - responds in the same language as input.
     """
     from app.logger import conversation_logger
+    
+    # Validate user_id
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
     
     # Generate conversation_id if not provided
     conversation_id = conversation_id or str(uuid.uuid4())
@@ -399,7 +417,7 @@ async def chat_voice_endpoint(
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
         
         # Load historical conversations from logs if history_days is specified
-        if history_days is not None and user_id:
+        if history_days is not None:
             # Validate history_days: must be 3, 7, or -1 (all history)
             if history_days not in [3, 7, -1]:
                 raise HTTPException(
@@ -471,7 +489,7 @@ async def chat_voice_endpoint(
 async def chat_voice_text_endpoint(
     audio: UploadFile = File(..., description="Audio file (WebM or MP3) containing user's voice message"),
     conversation_id: str | None = None,
-    user_id: str | None = None,
+    user_id: str = ...,
     history_days: int | None = None,
     api_key: str = Depends(verify_api_key),
 ) -> VoiceChatResponse:
@@ -480,6 +498,10 @@ async def chat_voice_text_endpoint(
     Accepts audio input, processes it, but returns JSON with text response only.
     """
     from app.logger import conversation_logger
+    
+    # Validate user_id
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
     
     # Generate conversation_id if not provided
     conversation_id = conversation_id or str(uuid.uuid4())
@@ -520,7 +542,7 @@ async def chat_voice_text_endpoint(
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
         
         # Load historical conversations from logs if history_days is specified
-        if history_days is not None and user_id:
+        if history_days is not None:
             if history_days not in [3, 7, -1]:
                 raise HTTPException(
                     status_code=400,
