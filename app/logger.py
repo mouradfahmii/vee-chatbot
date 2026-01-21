@@ -213,8 +213,11 @@ class ConversationLogger:
                                 entry = json.loads(line.strip())
                                 entry_user_id = entry.get("user_id")
                                 
-                                # Filter by user_id
-                                if entry_user_id == user_id:
+                                # Filter by user_id - normalize for comparison
+                                entry_user_id_str = str(entry_user_id).strip() if entry_user_id else None
+                                user_id_str = str(user_id).strip()
+                                
+                                if entry_user_id_str == user_id_str:
                                     # Parse timestamp and check if within range
                                     try:
                                         entry_timestamp_str = entry.get("timestamp", "")
@@ -315,11 +318,18 @@ class ConversationLogger:
                                 entry_conversation_id = entry.get("conversation_id")
                                 
                                 # Filter by user_id and ensure conversation_id exists
-                                if entry_user_id == user_id and entry_conversation_id:
+                                # Normalize values for comparison
+                                entry_user_id_str = str(entry_user_id).strip() if entry_user_id else None
+                                user_id_str = str(user_id).strip()
+                                
+                                if entry_user_id_str == user_id_str and entry_conversation_id:
+                                    # Normalize conversation_id for consistent grouping
+                                    entry_conv_id_str = str(entry_conversation_id).strip()
+                                    
                                     # Initialize conversation if not exists
-                                    if entry_conversation_id not in conversations:
-                                        conversations[entry_conversation_id] = {
-                                            "conversation_id": entry_conversation_id,
+                                    if entry_conv_id_str not in conversations:
+                                        conversations[entry_conv_id_str] = {
+                                            "conversation_id": entry_conv_id_str,
                                             "title": "",
                                             "preview": "",
                                             "message_count": 0,
@@ -327,7 +337,7 @@ class ConversationLogger:
                                             "last_updated": entry.get("timestamp", ""),
                                         }
                                     
-                                    conv = conversations[entry_conversation_id]
+                                    conv = conversations[entry_conv_id_str]
                                     entry_timestamp = entry.get("timestamp", "")
                                     
                                     # Update first question as title (if not set yet)
@@ -470,7 +480,14 @@ class ConversationLogger:
                                 entry_conversation_id = entry.get("conversation_id")
                                 
                                 # Filter by both conversation_id AND user_id (security)
-                                if entry_conversation_id == conversation_id and entry_user_id == user_id:
+                                # Normalize values: convert to string and strip whitespace
+                                entry_user_id_str = str(entry_user_id).strip() if entry_user_id else None
+                                entry_conv_id_str = str(entry_conversation_id).strip() if entry_conversation_id else None
+                                user_id_str = str(user_id).strip()
+                                conv_id_str = str(conversation_id).strip()
+                                
+                                # Match if both user_id and conversation_id match
+                                if entry_user_id_str == user_id_str and entry_conv_id_str == conv_id_str:
                                     messages.append({
                                         "question": entry.get("question", ""),
                                         "answer": entry.get("answer", ""),
