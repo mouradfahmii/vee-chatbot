@@ -46,6 +46,7 @@ class ConversationMessage(BaseModel):
     question: str = Field(..., description="User's question")
     answer: str = Field(..., description="Assistant's response")
     timestamp: str = Field(..., description="ISO timestamp of when the message was sent")
+    image_url: Optional[str] = Field(None, description="URL to uploaded image if message contains image")
 
 
 class ConversationSummary(BaseModel):

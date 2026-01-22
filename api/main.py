@@ -3,15 +3,18 @@ from __future__ import annotations
 import html
 import re
 import uuid
+from pathlib import Path
 
 import base64
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app.chatbot import bot
 from app.config import settings
 from app.conversation_manager import conversation_manager
+from app.image_storage import save_image
 from app.ingest import ingest_dataset
 from app.mysql_ingestor import ingest_mysql
 from app.voice_utils import get_voice_processor
@@ -29,6 +32,14 @@ from api.schemas import (
 )
 
 app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
+
+# Mount static file serving for uploaded images
+# Create uploads/images directory if it doesn't exist
+uploads_dir = Path(settings.image_upload_dir)
+uploads_dir.mkdir(parents=True, exist_ok=True)
+
+# Mount static files for image serving
+app.mount("/images", StaticFiles(directory=str(uploads_dir)), name="images")
 
 
 def markdown_to_html(text: str) -> str:
@@ -108,6 +119,23 @@ async def chat_endpoint(
         # Use conversation manager to get history
         history_turns = conversation_manager.get_history(conversation_id)
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+    
+    # Load historical conversations from logs if history_days is specified
+    if payload.history_days is not None and payload.user_id:
+        from app.logger import conversation_logger
+        # Validate history_days: must be 3, 7, or -1 (all history)
+        if payload.history_days not in [3, 7, -1]:
+            raise HTTPException(
+                status_code=400, 
+                detail="history_days must be 3 (last 3 days), 7 (last 7 days), or -1 (all history)"
+            )
+        historical_turns = conversation_logger.load_user_history_as_turns(
+            user_id=payload.user_id,
+            days=payload.history_days
+        )
+        # Merge historical turns with current conversation history
+        # Historical turns are already sorted oldest first, so prepend them
+        history = historical_turns + history
     
     try:
         answer = bot.answer(
@@ -212,9 +240,10 @@ async def chat_html_endpoint(
 @app.post("/chat/image", response_model=ChatResponse)
 async def chat_image_endpoint(
     image: UploadFile = File(..., description="Food image to analyze"),
-    question: str = "What is in this image? Estimate the calories.",
-    conversation_id: str | None = None,
-    user_id: str = ...,
+    question: str = Query("What is in this image? Estimate the calories.", description="Question about the image"),
+    conversation_id: str | None = Form(None, description="Conversation ID for maintaining context"),
+    user_id: str = Form(..., description="User identifier (required)"),
+    history_days: int | None = Form(None, description="Load user's conversation history: 3 (last 3 days), 7 (last 7 days), or -1 (all history)"),
     api_key: str = Depends(verify_api_key),
 ) -> ChatResponse:
     """Analyze a food image and answer questions about it - requires API key authentication."""
@@ -233,9 +262,29 @@ async def chat_image_endpoint(
         # Read image data
         image_data = await image.read()
         
+        # Save image to filesystem and get URL
+        original_filename = image.filename or "image.jpg"
+        _, image_url = save_image(image_data, conversation_id, original_filename)
+        
         # Get conversation history (similar to text chat endpoint)
         history_turns = conversation_manager.get_history(conversation_id)
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+        
+        # Load historical conversations from logs if history_days is specified
+        if history_days is not None:
+            from app.logger import conversation_logger
+            # Validate history_days: must be 3, 7, or -1 (all history)
+            if history_days not in [3, 7, -1]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="history_days must be 3 (last 3 days), 7 (last 7 days), or -1 (all history)"
+                )
+            historical_turns = conversation_logger.load_user_history_as_turns(
+                user_id=user_id,
+                days=history_days
+            )
+            # Merge historical turns with current conversation history
+            history = historical_turns + history
         
         # Analyze image with conversation history for context
         answer = bot.answer_with_image(
@@ -243,7 +292,8 @@ async def chat_image_endpoint(
             question=question,
             history=history if history else None,
             user_id=user_id,
-            conversation_id=conversation_id
+            conversation_id=conversation_id,
+            image_url=image_url
         )
         
         # Store the conversation turn (image analysis now uses history for context)
@@ -267,19 +317,25 @@ async def chat_image_endpoint(
     responses={200: {"content": {"application/json": {}}}},
 )
 async def chat_image_html_endpoint(
-    image: UploadFile = File(..., description="Food image to analyze"),
-    question: str = "What is in this image? Estimate the calories.",
-    conversation_id: str | None = None,
-    user_id: str = ...,
+    image: UploadFile | None = File(None, description="Food image to analyze (file upload)"),
+    image_base64: str | None = Form(None, description="Base64 encoded image data (alternative to file upload)"),
+    question: str = Query("What is in this image? Estimate the calories.", description="Question about the image"),
+    conversation_id: str | None = Form(None, description="Conversation ID for maintaining context"),
+    user_id: str = Form(..., description="User identifier (required)"),
+    history_days: int | None = Form(None, description="Load user's conversation history: 3 (last 3 days), 7 (last 7 days), or -1 (all history)"),
     api_key: str = Depends(verify_api_key),
 ) -> HTMLChatResponse:
     """
     Analyze a food image and return HTML response.
     Converts Markdown headers (#, ##, ###) and formatting (*, **) to HTML.
+    
+    Accepts image either as:
+    - File upload (multipart/form-data)
+    - Base64 encoded string (form data field 'image_base64')
     """
-    # Validate file type
-    if not image.content_type or not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+    # Validate that at least one image source is provided
+    if not image and not image_base64:
+        raise HTTPException(status_code=400, detail="Either 'image' (file upload) or 'image_base64' (base64 string) must be provided")
     
     # Validate user_id
     if not user_id:
@@ -289,12 +345,50 @@ async def chat_image_html_endpoint(
     conversation_id = conversation_id or str(uuid.uuid4())
     
     try:
-        # Read image data
-        image_data = await image.read()
+        # Handle image data - either from file upload or base64
+        original_filename = None
+        if image:
+            # Validate file type
+            if not image.content_type or not image.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="File must be an image")
+            # Read image data from file upload
+            image_data = await image.read()
+            original_filename = image.filename or "image.jpg"
+        else:
+            # Handle base64 encoded image
+            try:
+                # Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+                if image_base64.startswith("data:"):
+                    image_base64 = image_base64.split(",", 1)[1]
+                # Decode base64 to bytes
+                image_data = base64.b64decode(image_base64)
+                # Generate filename for base64 images
+                original_filename = "image.jpg"
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid base64 image data: {str(e)}")
+        
+        # Save image to filesystem and get URL
+        _, image_url = save_image(image_data, conversation_id, original_filename)
         
         # Get conversation history (similar to text chat endpoint)
         history_turns = conversation_manager.get_history(conversation_id)
         history = [{"user": turn.user, "assistant": turn.assistant} for turn in history_turns]
+        
+        # Load historical conversations from logs if history_days is specified
+        if history_days is not None:
+            from app.logger import conversation_logger
+            # Validate history_days: must be 3, 7, or -1 (all history)
+            if history_days not in [3, 7, -1]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="history_days must be 3 (last 3 days), 7 (last 7 days), or -1 (all history)"
+                )
+            historical_turns = conversation_logger.load_user_history_as_turns(
+                user_id=user_id,
+                days=history_days
+            )
+            # Merge historical turns with current conversation history
+            history = historical_turns + history
         
         # Analyze image with conversation history for context
         answer = bot.answer_with_image(
@@ -302,7 +396,8 @@ async def chat_image_html_endpoint(
             question=question,
             history=history if history else None,
             user_id=user_id,
-            conversation_id=conversation_id
+            conversation_id=conversation_id,
+            image_url=image_url
         )
         
         # Store the conversation turn (image analysis now uses history for context)

@@ -120,6 +120,11 @@ class ConversationLogger:
         """Log a conversation turn with all relevant details."""
         timestamp = datetime.utcnow().isoformat()
         
+        # Extract image_url from metadata if present
+        image_url = None
+        if metadata:
+            image_url = metadata.get("image_url")
+        
         log_entry = {
             "timestamp": timestamp,
             "user_id": user_id,
@@ -131,6 +136,10 @@ class ConversationLogger:
             "history_length": history_length,
             "metadata": metadata or {},
         }
+        
+        # Add image_url to log entry if present
+        if image_url:
+            log_entry["image_url"] = image_url
         
         # Log to JSON file (one file per day)
         date_str = datetime.utcnow().strftime("%Y-%m-%d")
@@ -488,11 +497,15 @@ class ConversationLogger:
                                 
                                 # Match if both user_id and conversation_id match
                                 if entry_user_id_str == user_id_str and entry_conv_id_str == conv_id_str:
-                                    messages.append({
+                                    message_dict = {
                                         "question": entry.get("question", ""),
                                         "answer": entry.get("answer", ""),
                                         "timestamp": entry.get("timestamp", ""),
-                                    })
+                                    }
+                                    # Add image_url if present
+                                    if entry.get("image_url"):
+                                        message_dict["image_url"] = entry.get("image_url")
+                                    messages.append(message_dict)
                                     
                             except (json.JSONDecodeError, KeyError):
                                 # Skip malformed entries

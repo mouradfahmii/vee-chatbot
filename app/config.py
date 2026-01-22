@@ -120,6 +120,15 @@ class Settings(BaseModel):
         default=os.getenv("FOOD_BOT_IMAGE_VALIDATION_MODEL", "openai/gpt-4o-mini"),
         description="Model to use for image validation (if separate validation is enabled). Use faster/cheaper model for validation. Default: gpt-4o-mini.",
     )
+    # Image storage configuration
+    image_upload_dir: Path = Field(
+        default=Path(__file__).resolve().parents[1] / "uploads" / "images",
+        description="Directory for storing uploaded images. Organized by conversation_id.",
+    )
+    image_base_url: str = Field(
+        default=os.getenv("IMAGE_BASE_URL", "https://chatbot.veeapp.online/images"),
+        description="Base URL for serving uploaded images. Used to generate full image URLs in history.",
+    )
 
 
 settings = Settings()

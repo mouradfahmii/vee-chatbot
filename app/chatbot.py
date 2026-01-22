@@ -207,6 +207,7 @@ class FoodChatbot:
         history: Sequence[dict] | None = None,
         user_id: str | None = None,
         conversation_id: str | None = None,
+        image_url: str | None = None,
     ) -> str:
         """
         Analyze an image and answer questions about it.
@@ -275,6 +276,15 @@ User question: {question}"""
                         "Please upload an image of a meal, food, or cooking-related content."
                     )
                 # Log the declined image
+                metadata = {
+                    "model": settings.vision_model,
+                    "has_image": True,
+                    "image_validated": False,
+                    "validation_combined": True,
+                }
+                if image_url:
+                    metadata["image_url"] = image_url
+                
                 conversation_logger.log_conversation(
                     question=f"[IMAGE] {question}",
                     answer=answer,
@@ -283,17 +293,21 @@ User question: {question}"""
                     history_length=0,
                     user_id=user_id,
                     conversation_id=conversation_id,
-                    metadata={
-                        "model": settings.vision_model,
-                        "has_image": True,
-                        "image_validated": False,
-                        "validation_combined": True,
-                    },
+                    metadata=metadata,
                 )
                 return answer
             
             # Image is food-related - log the successful analysis
             history_length = len(history) if history else 0
+            metadata = {
+                "model": settings.vision_model,
+                "has_image": True,
+                "image_validated": True,
+                "validation_combined": True,
+            }
+            if image_url:
+                metadata["image_url"] = image_url
+            
             conversation_logger.log_conversation(
                 question=f"[IMAGE] {question}",
                 answer=answer,
@@ -302,12 +316,7 @@ User question: {question}"""
                 history_length=history_length,
                 user_id=user_id,
                 conversation_id=conversation_id,
-                metadata={
-                    "model": settings.vision_model,
-                    "has_image": True,
-                    "image_validated": True,
-                    "validation_combined": True,
-                },
+                metadata=metadata,
             )
             
             return answer
