@@ -78,6 +78,9 @@ def markdown_to_html(text: str) -> str:
 async def ensure_chroma_seeded() -> None:
     """Load knowledge base on startup."""
     from app.config import settings
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     try:
         # Always load JSON data if available
@@ -85,6 +88,9 @@ async def ensure_chroma_seeded() -> None:
     except FileNotFoundError:
         # JSON file is optional if MySQL is used
         pass
+    except Exception as e:
+        # Log but don't fail startup if JSON ingestion fails
+        logger.warning(f"JSON ingestion on startup failed: {e}")
     
     # Optionally load MySQL data on startup
     if settings.ingest_mysql_on_startup:
@@ -92,8 +98,7 @@ async def ensure_chroma_seeded() -> None:
             ingest_mysql(reset=False)
         except Exception as e:
             # Log but don't fail startup if MySQL ingestion fails
-            import logging
-            logging.warning(f"MySQL ingestion on startup failed: {e}")
+            logger.warning(f"MySQL ingestion on startup failed: {e}")
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -768,3 +773,10 @@ async def get_conversation_endpoint(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error retrieving conversation: {str(exc)}") from exc
+
+
+if __name__ == "__main__":
+    import os
+    import uvicorn
+    port = int(os.getenv("API_PORT", "8001"))
+    uvicorn.run(app, host="127.0.0.1", port=port)

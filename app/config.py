@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import warnings
 from pathlib import Path
 from typing import Optional
@@ -16,6 +17,42 @@ os.environ.setdefault("CHROMA_TELEMETRY_ANONYMIZED", "False")
 
 # Suppress Pydantic serialization warnings from LiteLLM
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+
+
+def _detect_image_base_url() -> str:
+    """
+    Automatically detect the appropriate image base URL based on environment.
+    
+    Returns:
+        - If IMAGE_BASE_URL env var is set: use that
+        - If running on server (hostname contains 'veeapp' or similar): use production URL
+        - Otherwise (local machine): use localhost with port from API_PORT or default 8000
+    """
+    # Check if explicitly set via environment variable
+    explicit_url = os.getenv("IMAGE_BASE_URL")
+    if explicit_url:
+        return explicit_url
+    
+    # Get API port (default to 8000 for local, but check env var)
+    # Note: API_PORT can be set to override the default port
+    api_port = int(os.getenv("API_PORT", "8000"))
+    
+    # Try to detect if we're on the server
+    try:
+        hostname = socket.gethostname().lower()
+        # Check if hostname suggests we're on the production server
+        if "veeapp" in hostname or "production" in hostname or "prod" in hostname:
+            return "https://chatbot.veeapp.online/images"
+    except Exception:
+        pass
+    
+    # Check environment variable that might indicate deployment
+    deployment_env = os.getenv("DEPLOYMENT_ENV", "").lower()
+    if deployment_env in ["production", "prod", "server"]:
+        return "https://chatbot.veeapp.online/images"
+    
+    # Default to localhost
+    return f"http://127.0.0.1:{api_port}/images"
 
 
 class Settings(BaseModel):
@@ -126,8 +163,8 @@ class Settings(BaseModel):
         description="Directory for storing uploaded images. Organized by conversation_id.",
     )
     image_base_url: str = Field(
-        default=os.getenv("IMAGE_BASE_URL", "https://chatbot.veeapp.online/images"),
-        description="Base URL for serving uploaded images. Used to generate full image URLs in history.",
+        default_factory=_detect_image_base_url,
+        description="Base URL for serving uploaded images. Used to generate full image URLs in history. Auto-detects local vs server environment.",
     )
 
 

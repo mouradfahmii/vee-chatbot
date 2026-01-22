@@ -245,11 +245,15 @@ class ConversationLogger:
                                         # If cutoff_date is None (all history), include all entries
                                         # Otherwise, check if entry is within date range
                                         if cutoff_date is None or entry_timestamp >= cutoff_date:
-                                            turns.append({
+                                            turn = {
                                                 "user": entry.get("question", ""),
                                                 "assistant": entry.get("answer", ""),
                                                 "timestamp": entry_timestamp_str,
-                                            })
+                                            }
+                                            # Add image_url if present
+                                            if entry.get("image_url"):
+                                                turn["image_url"] = entry.get("image_url")
+                                            turns.append(turn)
                                     except (ValueError, KeyError) as e:
                                         # Skip entries with invalid timestamps
                                         continue

@@ -49,16 +49,27 @@ class VectorStore:
         )
 
     def query(self, text: str, n_results: int | None = None) -> List[Document]:
-        limit = n_results or settings.max_context_documents
-        results = self.collection.query(query_texts=[text], n_results=limit)
-        docs: List[Document] = []
-        for doc_id, content, metadata in zip(
-            results.get("ids", [[]])[0],
-            results.get("documents", [[]])[0],
-            results.get("metadatas", [[]])[0],
-        ):
-            docs.append(Document(doc_id=doc_id, content=content, metadata=metadata))
-        return docs
+        """
+        Query the vector store for similar documents.
+        Returns empty list if query fails (e.g., due to ChromaDB compatibility issues).
+        """
+        try:
+            limit = n_results or settings.max_context_documents
+            results = self.collection.query(query_texts=[text], n_results=limit)
+            docs: List[Document] = []
+            for doc_id, content, metadata in zip(
+                results.get("ids", [[]])[0],
+                results.get("documents", [[]])[0],
+                results.get("metadatas", [[]])[0],
+            ):
+                docs.append(Document(doc_id=doc_id, content=content, metadata=metadata))
+            return docs
+        except Exception as e:
+            # Log the error but don't fail - allow chatbot to work without knowledge base
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Vector store query failed: {e}. Continuing without knowledge base context.")
+            return []
 
 
 vector_store = VectorStore()
