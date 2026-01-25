@@ -463,9 +463,9 @@ async def reingest_mysql(
 @app.post("/chat/voice", response_model=VoiceChatResponse)
 async def chat_voice_endpoint(
     audio: UploadFile = File(..., description="Audio file (WebM or MP3) containing user's voice message"),
-    conversation_id: str | None = None,
-    user_id: str = ...,
-    history_days: int | None = None,
+    conversation_id: str | None = Form(None, description="Conversation ID for maintaining context"),
+    user_id: str = Form(..., description="User identifier (required)"),
+    history_days: int | None = Form(None, description="Load user's conversation history: 3 (last 3 days), 7 (last 7 days), or -1 (all history)"),
     api_key: str = Depends(verify_api_key),
 ) -> VoiceChatResponse:
     """
@@ -588,9 +588,9 @@ async def chat_voice_endpoint(
 @app.post("/chat/voice/text", response_model=VoiceChatResponse)
 async def chat_voice_text_endpoint(
     audio: UploadFile = File(..., description="Audio file (WebM or MP3) containing user's voice message"),
-    conversation_id: str | None = None,
-    user_id: str = ...,
-    history_days: int | None = None,
+    conversation_id: str | None = Form(None, description="Conversation ID for maintaining context"),
+    user_id: str = Form(..., description="User identifier (required)"),
+    history_days: int | None = Form(None, description="Load user's conversation history: 3 (last 3 days), 7 (last 7 days), or -1 (all history)"),
     api_key: str = Depends(verify_api_key),
 ) -> VoiceChatResponse:
     """
