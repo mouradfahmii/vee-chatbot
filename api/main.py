@@ -10,6 +10,10 @@ import base64
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response as StarletteResponse
+import time
 
 from app.chatbot import bot
 from app.config import settings
@@ -38,8 +42,106 @@ app = FastAPI(title="Vee Food Chatbot", version="0.1.0")
 uploads_dir = Path(settings.image_upload_dir)
 uploads_dir.mkdir(parents=True, exist_ok=True)
 
-# Mount static files for image serving
-app.mount("/images", StaticFiles(directory=str(uploads_dir)), name="images")
+# Mount static files for image serving at /uploads/images to match actual file path
+app.mount("/uploads/images", StaticFiles(directory=str(uploads_dir)), name="images")
+
+
+class APILoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware to log all API requests and responses."""
+    
+    async def dispatch(self, request: Request, call_next):
+        # Skip logging for static files and docs
+        if request.url.path.startswith("/uploads/") or request.url.path.startswith("/docs") or request.url.path.startswith("/redoc") or request.url.path.startswith("/openapi.json"):
+            return await call_next(request)
+        
+        start_time = time.time()
+        
+        # Read request body
+        request_body = None
+        if request.method in ["POST", "PUT", "PATCH"]:
+            body = await request.body()
+            if body:
+                try:
+                    # Try to parse as JSON
+                    import json
+                    request_body = json.loads(body.decode('utf-8'))
+                except:
+                    # If not JSON, check if it's form data
+                    content_type = request.headers.get("content-type", "")
+                    if content_type.startswith("multipart/form-data"):
+                        request_body = {"type": "multipart/form-data", "size": len(body)}
+                    elif content_type.startswith("application/x-www-form-urlencoded"):
+                        request_body = {"type": "form-urlencoded", "size": len(body)}
+                    else:
+                        # Try to show preview for text content
+                        try:
+                            preview = body[:200].decode('utf-8', errors='ignore')
+                            request_body = {"type": "raw", "size": len(body), "preview": preview}
+                        except:
+                            request_body = {"type": "binary", "size": len(body)}
+        
+        # Get query parameters
+        query_params = dict(request.query_params)
+        
+        # Process request
+        response = None
+        error = None
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            error = str(e)
+            raise
+        finally:
+            processing_time = (time.time() - start_time) * 1000  # Convert to ms
+            
+            # Read response body
+            response_body = None
+            if response:
+                response_body_bytes = b""
+                async for chunk in response.body_iterator:
+                    response_body_bytes += chunk
+                
+                # Recreate response with the body
+                response = StarletteResponse(
+                    content=response_body_bytes,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.media_type
+                )
+                
+                if response_body_bytes:
+                    try:
+                        import json
+                        response_body = json.loads(response_body_bytes.decode('utf-8'))
+                    except:
+                        # If response is too large, just log size
+                        if len(response_body_bytes) > 10000:
+                            response_body = {"type": "non-json", "size": len(response_body_bytes), "truncated": True}
+                        else:
+                            try:
+                                preview = response_body_bytes[:500].decode('utf-8', errors='ignore')
+                                response_body = {"type": "non-json", "size": len(response_body_bytes), "preview": preview}
+                            except:
+                                response_body = {"type": "binary", "size": len(response_body_bytes)}
+            
+            # Log the request/response
+            from app.logger import api_logger
+            api_logger.log_request_response(
+                method=request.method,
+                path=str(request.url.path),
+                status_code=response.status_code if response else 500,
+                request_headers=dict(request.headers),
+                request_body=request_body,
+                query_params=query_params,
+                response_body=response_body,
+                processing_time_ms=round(processing_time, 2),
+                error=error,
+            )
+        
+        return response
+
+# Add middleware
+app.add_middleware(APILoggingMiddleware)
 
 
 def markdown_to_html(text: str) -> str:

@@ -532,6 +532,55 @@ class ConversationLogger:
         return messages
 
 
-# Global logger instance
+class APILogger:
+    """Logs API requests and responses to JSONL file."""
+    
+    def __init__(self, log_dir: Path | None = None) -> None:
+        self.log_dir = log_dir or Path(__file__).resolve().parents[1] / "logs"
+        self.log_dir.mkdir(exist_ok=True)
+    
+    def log_request_response(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        request_headers: dict,
+        request_body: dict | None = None,
+        query_params: dict | None = None,
+        response_body: dict | None = None,
+        processing_time_ms: float | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Log API request and response to JSONL file."""
+        timestamp = datetime.utcnow().isoformat()
+        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        log_file = self.log_dir / f"api_logs_{date_str}.jsonl"
+        
+        # Sanitize headers (remove sensitive data)
+        safe_headers = {k: v for k, v in request_headers.items() 
+                       if k.lower() not in ['x-api-key', 'authorization', 'cookie']}
+        # Show that API key was present but don't log the value
+        if 'x-api-key' in request_headers or 'X-API-Key' in request_headers:
+            safe_headers['X-API-Key'] = '[REDACTED]'
+        
+        log_entry = {
+            "timestamp": timestamp,
+            "method": method,
+            "path": path,
+            "status_code": status_code,
+            "request_headers": safe_headers,
+            "query_params": query_params or {},
+            "request_body": request_body,
+            "response_body": response_body,
+            "processing_time_ms": processing_time_ms,
+            "error": error,
+        }
+        
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+
+# Global logger instances
 conversation_logger = ConversationLogger()
+api_logger = APILogger()
 

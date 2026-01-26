@@ -42,17 +42,17 @@ def _detect_image_base_url() -> str:
         hostname = socket.gethostname().lower()
         # Check if hostname suggests we're on the production server
         if "veeapp" in hostname or "production" in hostname or "prod" in hostname:
-            return "https://chatbot.veeapp.online/images"
+            return "https://chatbot.veeapp.online/uploads/images"
     except Exception:
         pass
     
     # Check environment variable that might indicate deployment
     deployment_env = os.getenv("DEPLOYMENT_ENV", "").lower()
     if deployment_env in ["production", "prod", "server"]:
-        return "https://chatbot.veeapp.online/images"
+        return "https://chatbot.veeapp.online/uploads/images"
     
-    # Default to localhost
-    return f"http://127.0.0.1:{api_port}/images"
+    # Default to localhost (with /uploads path to match actual file location)
+    return f"http://127.0.0.1:{api_port}/uploads/images"
 
 
 class Settings(BaseModel):
